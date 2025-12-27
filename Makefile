@@ -1,4 +1,4 @@
-.PHONY: help setup up down logs lint test clean
+.PHONY: help setup up up-dev down down-all logs lint test clean ps
 
 # Default target
 help:
@@ -7,14 +7,17 @@ help:
 	@echo "Usage: make [target]"
 	@echo ""
 	@echo "Targets:"
-	@echo "  help    - Show this help message"
-	@echo "  setup   - Initial setup"
-	@echo "  up      - Start development environment"
-	@echo "  down    - Stop development environment"
-	@echo "  logs    - Show logs"
-	@echo "  lint    - Run linters"
-	@echo "  test    - Run tests"
-	@echo "  clean   - Clean up"
+	@echo "  help      - Show this help message"
+	@echo "  setup     - Initial setup (install dependencies)"
+	@echo "  up        - Start infrastructure (DB, Redis, MinIO)"
+	@echo "  up-dev    - Start full dev environment (infra + backend + frontend)"
+	@echo "  down      - Stop infrastructure"
+	@echo "  down-all  - Stop all services and remove volumes"
+	@echo "  ps        - Show running containers"
+	@echo "  logs      - Show logs"
+	@echo "  lint      - Run linters"
+	@echo "  test      - Run tests"
+	@echo "  clean     - Clean up caches"
 
 # Initial setup
 setup:
@@ -22,13 +25,36 @@ setup:
 	cd backend && uv sync
 	cd frontend && pnpm install
 
-# Start development environment
+# Start infrastructure only (PostgreSQL, Redis, MinIO)
 up:
 	docker compose -f docker/docker-compose.yml up -d
+	@echo ""
+	@echo "Infrastructure started:"
+	@echo "  PostgreSQL: localhost:5432"
+	@echo "  Redis:      localhost:6379"
+	@echo "  MinIO API:  localhost:9000"
+	@echo "  MinIO Console: localhost:9001"
 
-# Stop development environment
+# Start full development environment
+up-dev:
+	docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml up -d
+	@echo ""
+	@echo "Development environment started:"
+	@echo "  Frontend:   http://localhost:3000"
+	@echo "  Backend:    http://localhost:8000"
+	@echo "  MinIO Console: http://localhost:9001"
+
+# Stop infrastructure
 down:
 	docker compose -f docker/docker-compose.yml down
+
+# Stop all and remove volumes
+down-all:
+	docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml down -v
+
+# Show running containers
+ps:
+	docker compose -f docker/docker-compose.yml ps
 
 # Show logs
 logs:
