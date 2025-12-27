@@ -1,0 +1,36 @@
+# Ruff configuration for Argus Backend
+
+line-length = 88
+target-version = "py312"
+
+[lint]
+select = [
+    "E",      # pycodestyle errors
+    "F",      # Pyflakes
+    "W",      # pycodestyle warnings
+    "I",      # isort
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear
+    "SIM",    # flake8-simplify
+    "C4",     # flake8-comprehensions
+    "DTZ",    # flake8-datetimez
+    "T20",    # flake8-print
+    "RUF",    # Ruff-specific rules
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+]
+
+[lint.isort]
+known-first-party = ["app"]
+
+[lint.per-file-ignores]
+"tests/**/*.py" = [
+    "S101",   # assert allowed in tests
+]
+
+[format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
