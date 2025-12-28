@@ -1,4 +1,4 @@
-.PHONY: help setup up up-dev down down-all logs lint lint-docker test test-docker clean ps supabase-start supabase-stop supabase-status
+.PHONY: help setup up up-dev down down-dev down-all logs lint lint-docker test test-docker clean ps supabase-start supabase-stop supabase-status
 
 # Default target
 help:
@@ -15,6 +15,7 @@ help:
 	@echo "  up        - Start infrastructure (Redis, MinIO)"
 	@echo "  up-dev    - Start full dev environment (Supabase + infra + apps)"
 	@echo "  down      - Stop infrastructure"
+	@echo "  down-dev  - Stop full dev environment (Supabase + infra + apps)"
 	@echo "  down-all  - Stop all services and remove volumes"
 	@echo "  ps        - Show running containers"
 	@echo "  logs      - Show logs"
@@ -82,6 +83,16 @@ up-dev:
 # Stop infrastructure
 down:
 	docker compose -f docker/docker-compose.yml down
+
+# Stop full development environment
+down-dev:
+	@echo "Stopping Docker services..."
+	docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml down
+	@echo ""
+	@echo "Stopping Supabase..."
+	@npx supabase stop || true
+	@echo ""
+	@echo "Development environment stopped."
 
 # Stop all and remove volumes
 down-all:
