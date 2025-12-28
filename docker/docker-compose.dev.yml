@@ -9,13 +9,17 @@ services:
       dockerfile: Dockerfile
     container_name: argus-backend
     environment:
-      - DATABASE_URL=postgresql://argus:argus_dev_password@postgres:5432/argus
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/postgres
       - REDIS_URL=redis://redis:6379/0
       - MINIO_ENDPOINT=minio:9000
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin
       - MINIO_BUCKET=argus-videos
       - DEBUG=true
+      # Supabase Auth
+      - SUPABASE_URL=http://gotrue:9999
+      - SUPABASE_ANON_KEY=local-anon-key
+      - SUPABASE_JWT_SECRET=super-secret-jwt-token-for-local-development-only
     volumes:
       - ../backend:/app
     ports:
@@ -27,6 +31,8 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+      gotrue:
+        condition: service_healthy
     command: uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
   # Celery Worker
@@ -36,11 +42,15 @@ services:
       dockerfile: Dockerfile
     container_name: argus-celery-worker
     environment:
-      - DATABASE_URL=postgresql://argus:argus_dev_password@postgres:5432/argus
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/postgres
       - REDIS_URL=redis://redis:6379/0
       - MINIO_ENDPOINT=minio:9000
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin
+      # Supabase Auth
+      - SUPABASE_URL=http://gotrue:9999
+      - SUPABASE_ANON_KEY=local-anon-key
+      - SUPABASE_JWT_SECRET=super-secret-jwt-token-for-local-development-only
     volumes:
       - ../backend:/app
     depends_on:
