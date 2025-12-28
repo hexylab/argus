@@ -42,24 +42,28 @@ flowchart TB
 
 ### ローカル開発環境
 
+Supabase CLI を使用してローカル開発環境を構築。Kong API Gateway 経由で Supabase API にアクセス。
+
 ```mermaid
 flowchart LR
-    subgraph Local["Docker Compose"]
+    subgraph SupabaseCLI["Supabase CLI (supabase start)"]
+        Kong["Kong API GW<br/>:54331"]
+        DB["PostgreSQL<br/>:54332"]
+        StudioLocal["Studio<br/>:54333"]
+        Inbucket["Inbucket<br/>:54334"]
+    end
+
+    subgraph DockerCompose["Docker Compose"]
         FE["Frontend<br/>:3000"]
         API["FastAPI<br/>:8000"]
         Worker["Celery Worker"]
-
-        subgraph Supabase["Supabase互換"]
-            DB["PostgreSQL<br/>:5432"]
-            AuthLocal["GoTrue<br/>:9999"]
-            Studio["Studio<br/>:3001"]
-        end
-
         MinIO["MinIO<br/>:9000"]
         Redis["Redis<br/>:6379"]
     end
 
+    FE --> Kong
     FE --> API
+    API --> Kong
     API --> DB
     API --> MinIO
     API --> Redis
@@ -67,111 +71,84 @@ flowchart LR
     Worker --> MinIO
 ```
 
+#### ポート一覧
+
+| サービス | ポート | 説明 |
+|---------|--------|------|
+| Supabase API (Kong) | 54331 | 認証 API (`/auth/v1/*`) |
+| PostgreSQL | 54332 | データベース |
+| Supabase Studio | 54333 | DB 管理 UI |
+| Inbucket | 54334 | メールテスト UI |
+| Frontend | 3000 | Next.js |
+| Backend | 8000 | FastAPI |
+| MinIO API | 9000 | S3 互換ストレージ |
+| MinIO Console | 9001 | MinIO 管理 UI |
+| Redis | 6379 | Celery ブローカー |
+
+#### 起動手順
+
+```bash
+# 1. Supabase を起動
+make supabase-start
+
+# 2. 認証情報を確認して .env に設定
+make supabase-status
+# → anon key と JWT secret を docker/.env にコピー
+
+# 3. 全サービスを起動
+make up-dev
+
+# アクセス
+# Frontend: http://localhost:3000
+# Backend: http://localhost:8000
+# Supabase Studio: http://localhost:54333
+# Inbucket (メール確認): http://localhost:54334
+```
+
+#### 構成ファイル
+
 ```yaml
-# docker-compose.yml
-version: '3.8'
-
+# docker/docker-compose.yml - インフラ (Redis, MinIO)
 services:
-  # Supabase互換ローカル環境
-  supabase-db:
-    image: supabase/postgres:15.1.0.117
+  redis:
+    image: redis:7-alpine
     ports:
-      - "5432:5432"
-    environment:
-      POSTGRES_PASSWORD: postgres
-    volumes:
-      - supabase-db:/var/lib/postgresql/data
+      - "6379:6379"
 
-  supabase-auth:
-    image: supabase/gotrue:v2.132.3
-    depends_on:
-      - supabase-db
-    ports:
-      - "9999:9999"
-    environment:
-      GOTRUE_SITE_URL: http://localhost:3000
-      GOTRUE_JWT_SECRET: super-secret-jwt-token-for-dev
-
-  supabase-studio:
-    image: supabase/studio:20231123-64a766a
-    ports:
-      - "3001:3000"
-
-  # S3互換ローカルストレージ
   minio:
     image: minio/minio:latest
     ports:
       - "9000:9000"
       - "9001:9001"
     command: server /data --console-address ":9001"
+
+# docker/docker-compose.dev.yml - アプリケーション
+services:
+  backend:
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-    volumes:
-      - minio-data:/data
+      - SUPABASE_URL=http://host.docker.internal:54331
+      - DATABASE_URL=postgresql://postgres:postgres@host.docker.internal:54332/postgres
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
-  # Redis (Celery Queue)
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-
-  # FastAPI Backend
-  api:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
-    environment:
-      - ENVIRONMENT=development
-      - SUPABASE_URL=http://supabase-auth:9999
-      - SUPABASE_JWT_SECRET=super-secret-jwt-token-for-dev
-      - S3_ENDPOINT=http://minio:9000
-      - S3_ACCESS_KEY=minioadmin
-      - S3_SECRET_KEY=minioadmin
-      - S3_BUCKET=argus-videos
-      - REDIS_URL=redis://redis:6379
-    volumes:
-      - ./backend:/app
-    depends_on:
-      - supabase-db
-      - minio
-      - redis
-
-  # Celery Worker
-  worker:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    command: celery -A app.worker worker --loglevel=info
-    environment:
-      - ENVIRONMENT=development
-      - REDIS_URL=redis://redis:6379
-      - S3_ENDPOINT=http://minio:9000
-    volumes:
-      - ./backend:/app
-    depends_on:
-      - redis
-      - minio
-
-  # Frontend
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile.dev
-    ports:
-      - "3000:3000"
     environment:
-      - NEXT_PUBLIC_SUPABASE_URL=http://localhost:9999
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
+      - NEXT_PUBLIC_SUPABASE_URL=http://localhost:54331
+      - SUPABASE_URL=http://host.docker.internal:54331
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+```
 
-volumes:
-  supabase-db:
-  minio-data:
+#### テスト実行
+
+```bash
+# Docker 内で CI 相当のテストを実行
+make lint-docker   # Backend + Frontend の lint
+make test-docker   # Backend + Frontend のテスト
+
+# ローカル環境で実行 (uv, pnpm が必要)
+make lint
+make test
 ```
 
 ### ステージング環境

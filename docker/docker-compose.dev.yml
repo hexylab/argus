@@ -1,5 +1,9 @@
 # Development overrides
 # Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# Prerequisites:
+#   - Run `make supabase-start` first to start Supabase services
+#   - Copy SUPABASE_ANON_KEY from `npx supabase status` to .env
 
 services:
   # Backend API (FastAPI)
@@ -9,29 +13,29 @@ services:
       dockerfile: Dockerfile
     container_name: argus-backend
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/postgres
+      # Supabase (via host.docker.internal to access CLI-managed services)
+      - SUPABASE_URL=http://host.docker.internal:54331
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
+      # Database (Supabase CLI PostgreSQL)
+      - DATABASE_URL=postgresql://postgres:postgres@host.docker.internal:54332/postgres
+      # Redis & MinIO (Docker network)
       - REDIS_URL=redis://redis:6379/0
       - MINIO_ENDPOINT=minio:9000
-      - MINIO_ACCESS_KEY=minioadmin
-      - MINIO_SECRET_KEY=minioadmin
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-minioadmin}
       - MINIO_BUCKET=argus-videos
       - DEBUG=true
-      # Supabase Auth
-      - SUPABASE_URL=http://gotrue:9999
-      - SUPABASE_ANON_KEY=local-anon-key
-      - SUPABASE_JWT_SECRET=super-secret-jwt-token-for-local-development-only
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ../backend:/app
     ports:
       - "8000:8000"
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
       minio:
-        condition: service_healthy
-      gotrue:
         condition: service_healthy
     command: uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
@@ -42,20 +46,22 @@ services:
       dockerfile: Dockerfile
     container_name: argus-celery-worker
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/postgres
+      # Supabase (via host.docker.internal)
+      - SUPABASE_URL=http://host.docker.internal:54331
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
+      # Database (Supabase CLI PostgreSQL)
+      - DATABASE_URL=postgresql://postgres:postgres@host.docker.internal:54332/postgres
+      # Redis & MinIO (Docker network)
       - REDIS_URL=redis://redis:6379/0
       - MINIO_ENDPOINT=minio:9000
-      - MINIO_ACCESS_KEY=minioadmin
-      - MINIO_SECRET_KEY=minioadmin
-      # Supabase Auth
-      - SUPABASE_URL=http://gotrue:9999
-      - SUPABASE_ANON_KEY=local-anon-key
-      - SUPABASE_JWT_SECRET=super-secret-jwt-token-for-local-development-only
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-minioadmin}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ../backend:/app
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
     command: uv run celery -A app.celery worker --loglevel=info
@@ -67,13 +73,20 @@ services:
       dockerfile: Dockerfile.dev
     container_name: argus-frontend
     environment:
+      # Public URLs (accessed from browser)
       - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_SUPABASE_URL=http://localhost:54331
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      # Server-side URL (Docker container to Supabase CLI)
+      - SUPABASE_URL=http://host.docker.internal:54331
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ../frontend:/app
       - /app/node_modules
       - /app/.next
     ports:
-      - "3000:3000"
+      - "${FRONTEND_PORT:-3000}:3000"
     depends_on:
       - backend
-    command: pnpm dev
+    command: pnpm dev -p 3000
