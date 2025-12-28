@@ -32,19 +32,30 @@ git checkout -b feature/#1-repository-structure
 Docker 内で CI 相当のテストを実行してから PR 発行:
 
 ```bash
+# 推奨: Makefile を使用
+make lint-docker   # Backend + Frontend の lint
+make test-docker   # Backend + Frontend のテスト
+
+# 個別実行
 # Backend (Python)
-cd backend
-docker compose run --rm api ruff check .
-docker compose run --rm api ruff format --check .
-docker compose run --rm api mypy .
-docker compose run --rm api pytest
+docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml \
+  run --rm backend uv run ruff check .
+docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml \
+  run --rm backend uv run ruff format --check .
+docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml \
+  run --rm backend uv run mypy .
+docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml \
+  run --rm backend uv run pytest
 
 # Frontend (TypeScript)
-cd frontend
-docker compose run --rm web pnpm lint
-docker compose run --rm web pnpm format:check
-docker compose run --rm web pnpm typecheck
-docker compose run --rm web pnpm test
+docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml \
+  run --rm frontend pnpm lint
+docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml \
+  run --rm frontend pnpm format:check
+docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml \
+  run --rm frontend pnpm typecheck
+docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml \
+  run --rm frontend pnpm test
 ```
 
 ### 4. PR 発行とマージ

@@ -139,6 +139,18 @@ services:
       - "host.docker.internal:host-gateway"
 ```
 
+#### テスト実行
+
+```bash
+# Docker 内で CI 相当のテストを実行
+make lint-docker   # Backend + Frontend の lint
+make test-docker   # Backend + Frontend のテスト
+
+# ローカル環境で実行 (uv, pnpm が必要)
+make lint
+make test
+```
+
 ### ステージング環境
 
 ```mermaid

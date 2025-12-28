@@ -1,4 +1,4 @@
-.PHONY: help setup up up-dev down down-all logs lint test clean ps supabase-start supabase-stop supabase-status
+.PHONY: help setup up up-dev down down-all logs lint lint-docker test test-docker clean ps supabase-start supabase-stop supabase-status
 
 # Default target
 help:
@@ -20,10 +20,12 @@ help:
 	@echo "  logs      - Show logs"
 	@echo ""
 	@echo "Development:"
-	@echo "  setup     - Initial setup (install dependencies)"
-	@echo "  lint      - Run linters"
-	@echo "  test      - Run tests"
-	@echo "  clean     - Clean up caches"
+	@echo "  setup       - Initial setup (install dependencies)"
+	@echo "  lint        - Run linters (local)"
+	@echo "  lint-docker - Run linters (Docker)"
+	@echo "  test        - Run tests (local)"
+	@echo "  test-docker - Run tests (Docker)"
+	@echo "  clean       - Clean up caches"
 
 # ===========================================
 # Supabase Commands
@@ -98,7 +100,7 @@ logs:
 # Development Commands
 # ===========================================
 
-# Run linters
+# Run linters (local)
 lint:
 	@echo "Running backend linters..."
 	cd backend && uv run ruff check .
@@ -108,12 +110,38 @@ lint:
 	cd frontend && pnpm lint
 	cd frontend && pnpm format:check
 
-# Run tests
+# Run linters (Docker)
+lint-docker:
+	@echo "Running backend linters in Docker..."
+	docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml \
+		run --rm backend uv run ruff check .
+	docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml \
+		run --rm backend uv run ruff format --check .
+	docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml \
+		run --rm backend uv run mypy .
+	@echo "Running frontend linters in Docker..."
+	docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml \
+		run --rm frontend pnpm lint
+	docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml \
+		run --rm frontend pnpm format:check
+	docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml \
+		run --rm frontend pnpm typecheck
+
+# Run tests (local)
 test:
 	@echo "Running backend tests..."
 	cd backend && uv run pytest
 	@echo "Running frontend tests..."
 	cd frontend && pnpm test
+
+# Run tests (Docker)
+test-docker:
+	@echo "Running backend tests in Docker..."
+	docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml \
+		run --rm backend uv run pytest
+	@echo "Running frontend tests in Docker..."
+	docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml \
+		run --rm frontend pnpm test
 
 # Clean up
 clean:
