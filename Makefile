@@ -74,9 +74,9 @@ up-dev:
 	@echo "Development environment started:"
 	@echo "  Frontend:       http://localhost:3000"
 	@echo "  Backend:        http://localhost:8000"
-	@echo "  Supabase API:   http://localhost:54321"
-	@echo "  Supabase Studio: http://localhost:54323"
-	@echo "  Inbucket (Mail): http://localhost:54324"
+	@echo "  Supabase API:   http://localhost:54331"
+	@echo "  Supabase Studio: http://localhost:54333"
+	@echo "  Inbucket (Mail): http://localhost:54334"
 	@echo "  MinIO Console:  http://localhost:9001"
 
 # Stop infrastructure

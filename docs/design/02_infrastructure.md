@@ -47,10 +47,10 @@ Supabase CLI を使用してローカル開発環境を構築。Kong API Gateway
 ```mermaid
 flowchart LR
     subgraph SupabaseCLI["Supabase CLI (supabase start)"]
-        Kong["Kong API GW<br/>:54321"]
-        DB["PostgreSQL<br/>:54322"]
-        StudioLocal["Studio<br/>:54323"]
-        Inbucket["Inbucket<br/>:54324"]
+        Kong["Kong API GW<br/>:54331"]
+        DB["PostgreSQL<br/>:54332"]
+        StudioLocal["Studio<br/>:54333"]
+        Inbucket["Inbucket<br/>:54334"]
     end
 
     subgraph DockerCompose["Docker Compose"]
@@ -75,10 +75,10 @@ flowchart LR
 
 | サービス | ポート | 説明 |
 |---------|--------|------|
-| Supabase API (Kong) | 54321 | 認証 API (`/auth/v1/*`) |
-| PostgreSQL | 54322 | データベース |
-| Supabase Studio | 54323 | DB 管理 UI |
-| Inbucket | 54324 | メールテスト UI |
+| Supabase API (Kong) | 54331 | 認証 API (`/auth/v1/*`) |
+| PostgreSQL | 54332 | データベース |
+| Supabase Studio | 54333 | DB 管理 UI |
+| Inbucket | 54334 | メールテスト UI |
 | Frontend | 3000 | Next.js |
 | Backend | 8000 | FastAPI |
 | MinIO API | 9000 | S3 互換ストレージ |
@@ -101,8 +101,8 @@ make up-dev
 # アクセス
 # Frontend: http://localhost:3000
 # Backend: http://localhost:8000
-# Supabase Studio: http://localhost:54323
-# Inbucket (メール確認): http://localhost:54324
+# Supabase Studio: http://localhost:54333
+# Inbucket (メール確認): http://localhost:54334
 ```
 
 #### 構成ファイル
@@ -126,15 +126,15 @@ services:
 services:
   backend:
     environment:
-      - SUPABASE_URL=http://host.docker.internal:54321
-      - DATABASE_URL=postgresql://postgres:postgres@host.docker.internal:54322/postgres
+      - SUPABASE_URL=http://host.docker.internal:54331
+      - DATABASE_URL=postgresql://postgres:postgres@host.docker.internal:54332/postgres
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
   frontend:
     environment:
-      - NEXT_PUBLIC_SUPABASE_URL=http://localhost:54321
-      - SUPABASE_URL=http://host.docker.internal:54321
+      - NEXT_PUBLIC_SUPABASE_URL=http://localhost:54331
+      - SUPABASE_URL=http://host.docker.internal:54331
     extra_hosts:
       - "host.docker.internal:host-gateway"
 ```

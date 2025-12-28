@@ -14,11 +14,11 @@ services:
     container_name: argus-backend
     environment:
       # Supabase (via host.docker.internal to access CLI-managed services)
-      - SUPABASE_URL=http://host.docker.internal:54321
+      - SUPABASE_URL=http://host.docker.internal:54331
       - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
       - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
       # Database (Supabase CLI PostgreSQL)
-      - DATABASE_URL=postgresql://postgres:postgres@host.docker.internal:54322/postgres
+      - DATABASE_URL=postgresql://postgres:postgres@host.docker.internal:54332/postgres
       # Redis & MinIO (Docker network)
       - REDIS_URL=redis://redis:6379/0
       - MINIO_ENDPOINT=minio:9000
@@ -47,11 +47,11 @@ services:
     container_name: argus-celery-worker
     environment:
       # Supabase (via host.docker.internal)
-      - SUPABASE_URL=http://host.docker.internal:54321
+      - SUPABASE_URL=http://host.docker.internal:54331
       - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
       - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
       # Database (Supabase CLI PostgreSQL)
-      - DATABASE_URL=postgresql://postgres:postgres@host.docker.internal:54322/postgres
+      - DATABASE_URL=postgresql://postgres:postgres@host.docker.internal:54332/postgres
       # Redis & MinIO (Docker network)
       - REDIS_URL=redis://redis:6379/0
       - MINIO_ENDPOINT=minio:9000
@@ -75,10 +75,10 @@ services:
     environment:
       # Public URLs (accessed from browser)
       - NEXT_PUBLIC_API_URL=http://localhost:8000
-      - NEXT_PUBLIC_SUPABASE_URL=http://localhost:54321
+      - NEXT_PUBLIC_SUPABASE_URL=http://localhost:54331
       - NEXT_PUBLIC_SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
       # Server-side URL (Docker container to Supabase CLI)
-      - SUPABASE_URL=http://host.docker.internal:54321
+      - SUPABASE_URL=http://host.docker.internal:54331
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
