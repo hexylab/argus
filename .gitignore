@@ -65,6 +65,12 @@ pnpm-debug.log*
 .docker/
 
 # ====================
+# Supabase
+# ====================
+supabase/.branches/
+supabase/.temp/
+
+# ====================
 # Misc
 # ====================
 *.bak

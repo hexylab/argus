@@ -1,4 +1,5 @@
-"permissions": {
+{
+  "permissions": {
     "deny": [
       "Bash(sudo:*)",
       "Bash(rm:*)",
@@ -24,4 +25,5 @@
       "Bash(mongod:*)",
       "mcp__supabase__execute_sql"
     ]
+  }
 }
