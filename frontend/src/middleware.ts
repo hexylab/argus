@@ -6,8 +6,12 @@ export async function middleware(request: NextRequest) {
     request,
   });
 
+  // Use SUPABASE_URL for server-side (Docker network) or fall back to NEXT_PUBLIC_SUPABASE_URL
+  const supabaseUrl =
+    process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!;
+
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    supabaseUrl,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
