@@ -1,5 +1,14 @@
 .PHONY: help setup up up-dev down down-dev down-all logs lint lint-docker test test-docker clean ps supabase-start supabase-stop supabase-status
 
+# Load environment variables from docker/.env if exists
+-include docker/.env
+
+# Default values
+FRONTEND_PORT ?= 3000
+BACKEND_PORT ?= 8000
+MINIO_API_PORT ?= 9000
+MINIO_CONSOLE_PORT ?= 9001
+
 # Default target
 help:
 	@echo "Argus - Development Commands"
@@ -61,8 +70,8 @@ up:
 	@echo ""
 	@echo "Infrastructure started:"
 	@echo "  Redis:        localhost:6379"
-	@echo "  MinIO API:    localhost:9000"
-	@echo "  MinIO Console: localhost:9001"
+	@echo "  MinIO API:    localhost:$(MINIO_API_PORT)"
+	@echo "  MinIO Console: localhost:$(MINIO_CONSOLE_PORT)"
 
 # Start full development environment
 up-dev:
@@ -73,12 +82,12 @@ up-dev:
 	docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml up -d
 	@echo ""
 	@echo "Development environment started:"
-	@echo "  Frontend:       http://localhost:3000"
-	@echo "  Backend:        http://localhost:8000"
+	@echo "  Frontend:       http://localhost:$(FRONTEND_PORT)"
+	@echo "  Backend:        http://localhost:$(BACKEND_PORT)"
 	@echo "  Supabase API:   http://localhost:54331"
 	@echo "  Supabase Studio: http://localhost:54333"
 	@echo "  Inbucket (Mail): http://localhost:54334"
-	@echo "  MinIO Console:  http://localhost:9001"
+	@echo "  MinIO Console:  http://localhost:$(MINIO_CONSOLE_PORT)"
 
 # Stop infrastructure
 down:

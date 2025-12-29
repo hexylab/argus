@@ -77,7 +77,8 @@ services:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
       - NEXT_PUBLIC_SUPABASE_URL=http://localhost:54331
       - NEXT_PUBLIC_SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
-      # Server-side URL (Docker container to Supabase CLI)
+      # Server-side URLs (Docker container to other services)
+      - API_URL=http://backend:8000
       - SUPABASE_URL=http://host.docker.internal:54331
     extra_hosts:
       - "host.docker.internal:host-gateway"
