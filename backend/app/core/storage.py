@@ -17,7 +17,7 @@ DEFAULT_PRESIGNED_URL_EXPIRES_IN = 3600
 
 @lru_cache
 def get_storage_client() -> S3Client:
-    """Get cached S3/MinIO client instance."""
+    """Get cached S3/MinIO client instance for internal operations."""
     settings = get_settings()
 
     # Configure boto3 for MinIO compatibility
@@ -29,6 +29,33 @@ def get_storage_client() -> S3Client:
     endpoint_url = (
         f"{'https' if settings.minio_use_ssl else 'http'}://{settings.minio_endpoint}"
     )
+
+    client: S3Client = boto3.client(
+        "s3",
+        endpoint_url=endpoint_url,
+        aws_access_key_id=settings.minio_access_key,
+        aws_secret_access_key=settings.minio_secret_key,
+        config=s3_config,
+    )
+
+    return client
+
+
+@lru_cache
+def get_public_storage_client() -> S3Client:
+    """Get cached S3/MinIO client for generating presigned URLs accessible from browser."""
+    settings = get_settings()
+
+    # Use public endpoint if configured, otherwise fall back to internal endpoint
+    endpoint = settings.minio_public_endpoint or settings.minio_endpoint
+
+    # Configure boto3 for MinIO compatibility
+    s3_config = Config(
+        signature_version="s3v4",
+        s3={"addressing_style": "path"},
+    )
+
+    endpoint_url = f"{'https' if settings.minio_use_ssl else 'http'}://{endpoint}"
 
     client: S3Client = boto3.client(
         "s3",
@@ -64,6 +91,8 @@ def generate_presigned_upload_url(
     """
     Generate a presigned URL for uploading a file to S3.
 
+    Uses the public endpoint for URLs that will be accessed from browser.
+
     Args:
         s3_key: The S3 object key.
         content_type: MIME type of the file.
@@ -73,7 +102,7 @@ def generate_presigned_upload_url(
         Presigned URL for PUT upload.
     """
     settings = get_settings()
-    client = get_storage_client()
+    client = get_public_storage_client()
 
     params: dict[str, str] = {
         "Bucket": settings.minio_bucket,
