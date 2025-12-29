@@ -2,6 +2,8 @@
 
 from fastapi.testclient import TestClient
 
+from tests.conftest import TEST_USER_ID
+
 
 def test_health_check(client: TestClient) -> None:
     """Test health check endpoint (no auth required)."""
@@ -18,7 +20,7 @@ def test_get_me_authenticated(
     response = client.get("/api/v1/me", headers=auth_headers)
     assert response.status_code == 200
     data = response.json()
-    assert data["user_id"] == "test-user-id"
+    assert data["user_id"] == TEST_USER_ID
     assert data["email"] == "test@example.com"
 
 
