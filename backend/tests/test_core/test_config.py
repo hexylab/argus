@@ -15,7 +15,7 @@ def test_settings_required_fields(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("DATABASE_URL", raising=False)
 
     with pytest.raises(ValidationError):
-        Settings()  # type: ignore[call-arg]
+        Settings()
 
 
 def test_settings_with_required_fields() -> None:
