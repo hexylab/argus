@@ -157,10 +157,12 @@ class TestGetUploadUrl:
 class TestCompleteUpload:
     """Tests for POST /api/v1/projects/{project_id}/videos/{video_id}/complete."""
 
+    @patch("app.tasks.frame_extraction.extract_frames")
     @patch("app.api.v1.videos.get_supabase_client")
     def test_complete_upload_success(
         self,
         mock_get_client: MagicMock,
+        mock_extract_frames: MagicMock,
         client: TestClient,
         auth_headers: dict[str, str],
     ) -> None:
@@ -209,7 +211,7 @@ class TestCompleteUpload:
             }
         ]
 
-        # Mock for updating video
+        # Mock for updating video (status changes to processing)
         mock_update_result = MagicMock()
         mock_update_result.data = [
             {
@@ -225,7 +227,7 @@ class TestCompleteUpload:
                 "height": None,
                 "fps": None,
                 "frame_count": None,
-                "status": "ready",
+                "status": "processing",
                 "error_message": None,
                 "metadata": {},
                 "created_at": now,
@@ -248,8 +250,13 @@ class TestCompleteUpload:
 
         assert response.status_code == 200
         data = response.json()
-        assert data["status"] == "ready"
+        assert data["status"] == "processing"
         assert data["file_size"] == 5000000
+
+        # Verify that extract_frames task was queued
+        mock_extract_frames.delay.assert_called_once_with(
+            str(video_id), str(project_id)
+        )
 
     @patch("app.api.v1.videos.get_supabase_client")
     def test_complete_upload_video_not_found(
