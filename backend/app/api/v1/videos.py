@@ -121,11 +121,15 @@ async def mark_upload_complete(
     current_user: CurrentUser,
 ) -> Video:
     """
-    Mark a video upload as complete.
+    Mark a video upload as complete and start frame extraction.
 
     This should be called after the file has been uploaded to S3.
-    Updates the video status from 'uploading' to 'ready'.
+    Updates the video status from 'uploading' to 'processing' and
+    queues a background task to extract frames.
     """
+    # Import here to avoid circular imports
+    from app.tasks.frame_extraction import extract_frames
+
     client = get_supabase_client()
     owner_id = UUID(current_user.sub)
 
@@ -142,14 +146,19 @@ async def mark_upload_complete(
                 detail=f"Video is not in uploading state (current: {video.status})",
             )
 
-        # Update video status to ready
-        update_data = VideoUpdate(status=VideoStatus.READY)
+        # Update video status to processing
+        update_data = VideoUpdate(status=VideoStatus.PROCESSING)
         if data.file_size is not None:
             update_data = VideoUpdate(
-                status=VideoStatus.READY, file_size=data.file_size
+                status=VideoStatus.PROCESSING, file_size=data.file_size
             )
 
-        return crud_update_video(client, video_id, project_id, update_data)
+        updated_video = crud_update_video(client, video_id, project_id, update_data)
+
+        # Queue frame extraction task
+        extract_frames.delay(str(video_id), str(project_id))
+
+        return updated_video
 
     except VideoNotFoundError as e:
         raise HTTPException(
