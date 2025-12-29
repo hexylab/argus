@@ -717,3 +717,261 @@ class TestDeleteVideo:
         )
 
         assert response.status_code == 404
+
+
+class TestVideosAuthorization:
+    """Tests for video authorization (access control)."""
+
+    @patch("app.api.v1.videos.get_supabase_client")
+    def test_access_other_users_project_videos_returns_404(
+        self,
+        mock_get_client: MagicMock,
+        client: TestClient,
+        other_user_auth_headers: dict[str, str],
+    ) -> None:
+        """Test that accessing videos in another user's project returns 404."""
+        project_id = uuid4()
+
+        mock_supabase = MagicMock()
+        # Project not found because owner_id doesn't match
+        mock_result = MagicMock()
+        mock_result.data = []
+        mock_supabase.table.return_value.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_result
+        mock_get_client.return_value = mock_supabase
+
+        response = client.get(
+            f"/api/v1/projects/{project_id}/videos",
+            headers=other_user_auth_headers,
+        )
+
+        assert response.status_code == 404
+
+    @patch("app.api.v1.videos.get_supabase_client")
+    def test_upload_to_other_users_project_returns_404(
+        self,
+        mock_get_client: MagicMock,
+        client: TestClient,
+        other_user_auth_headers: dict[str, str],
+    ) -> None:
+        """Test that uploading to another user's project returns 404."""
+        project_id = uuid4()
+
+        mock_supabase = MagicMock()
+        mock_result = MagicMock()
+        mock_result.data = []
+        mock_supabase.table.return_value.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_result
+        mock_get_client.return_value = mock_supabase
+
+        response = client.post(
+            f"/api/v1/projects/{project_id}/videos/upload-url",
+            json={"filename": "test.mp4"},
+            headers=other_user_auth_headers,
+        )
+
+        assert response.status_code == 404
+
+
+class TestVideosStatusTransitions:
+    """Tests for video status state machine."""
+
+    @patch("app.api.v1.videos.get_supabase_client")
+    def test_complete_upload_from_processing_fails(
+        self,
+        mock_get_client: MagicMock,
+        client: TestClient,
+        auth_headers: dict[str, str],
+    ) -> None:
+        """Test that completing upload for video in processing status fails."""
+        project_id = uuid4()
+        video_id = uuid4()
+        now = datetime.now(tz=UTC).isoformat()
+
+        mock_supabase = MagicMock()
+        mock_project_result = MagicMock()
+        mock_project_result.data = [
+            {
+                "id": str(project_id),
+                "owner_id": TEST_USER_ID,
+                "name": "Test Project",
+                "description": None,
+                "status": "active",
+                "settings": {},
+                "created_at": now,
+                "updated_at": now,
+            }
+        ]
+
+        mock_video_result = MagicMock()
+        mock_video_result.data = [
+            {
+                "id": str(video_id),
+                "project_id": str(project_id),
+                "filename": "test.mp4",
+                "original_filename": "test.mp4",
+                "s3_key": f"projects/{project_id}/videos/{video_id}/test.mp4",
+                "mime_type": "video/mp4",
+                "file_size": 1000000,
+                "duration_seconds": None,
+                "width": None,
+                "height": None,
+                "fps": None,
+                "frame_count": None,
+                "status": "processing",
+                "error_message": None,
+                "metadata": {},
+                "created_at": now,
+                "updated_at": now,
+            }
+        ]
+
+        mock_supabase.table.return_value.select.return_value.eq.return_value.eq.return_value.execute.side_effect = [
+            mock_project_result,
+            mock_video_result,
+        ]
+        mock_get_client.return_value = mock_supabase
+
+        response = client.post(
+            f"/api/v1/projects/{project_id}/videos/{video_id}/complete",
+            json={},
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 400
+        assert "not in uploading state" in response.json()["detail"].lower()
+
+    @patch("app.api.v1.videos.get_supabase_client")
+    def test_complete_upload_from_failed_fails(
+        self,
+        mock_get_client: MagicMock,
+        client: TestClient,
+        auth_headers: dict[str, str],
+    ) -> None:
+        """Test that completing upload for video in failed status fails."""
+        project_id = uuid4()
+        video_id = uuid4()
+        now = datetime.now(tz=UTC).isoformat()
+
+        mock_supabase = MagicMock()
+        mock_project_result = MagicMock()
+        mock_project_result.data = [
+            {
+                "id": str(project_id),
+                "owner_id": TEST_USER_ID,
+                "name": "Test Project",
+                "description": None,
+                "status": "active",
+                "settings": {},
+                "created_at": now,
+                "updated_at": now,
+            }
+        ]
+
+        mock_video_result = MagicMock()
+        mock_video_result.data = [
+            {
+                "id": str(video_id),
+                "project_id": str(project_id),
+                "filename": "test.mp4",
+                "original_filename": "test.mp4",
+                "s3_key": f"projects/{project_id}/videos/{video_id}/test.mp4",
+                "mime_type": "video/mp4",
+                "file_size": 1000000,
+                "duration_seconds": None,
+                "width": None,
+                "height": None,
+                "fps": None,
+                "frame_count": None,
+                "status": "failed",
+                "error_message": "Previous processing failed",
+                "metadata": {},
+                "created_at": now,
+                "updated_at": now,
+            }
+        ]
+
+        mock_supabase.table.return_value.select.return_value.eq.return_value.eq.return_value.execute.side_effect = [
+            mock_project_result,
+            mock_video_result,
+        ]
+        mock_get_client.return_value = mock_supabase
+
+        response = client.post(
+            f"/api/v1/projects/{project_id}/videos/{video_id}/complete",
+            json={},
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 400
+
+
+class TestVideosInputValidation:
+    """Tests for video input validation."""
+
+    def test_upload_url_empty_filename(
+        self,
+        client: TestClient,
+        auth_headers: dict[str, str],
+    ) -> None:
+        """Test that empty filename is rejected."""
+        project_id = uuid4()
+        response = client.post(
+            f"/api/v1/projects/{project_id}/videos/upload-url",
+            json={"filename": ""},
+            headers=auth_headers,
+        )
+        assert response.status_code == 422
+
+    def test_upload_url_filename_too_long(
+        self,
+        client: TestClient,
+        auth_headers: dict[str, str],
+    ) -> None:
+        """Test that filename exceeding max length is rejected."""
+        project_id = uuid4()
+        response = client.post(
+            f"/api/v1/projects/{project_id}/videos/upload-url",
+            json={"filename": "x" * 256 + ".mp4"},
+            headers=auth_headers,
+        )
+        assert response.status_code == 422
+
+    def test_complete_upload_negative_file_size(
+        self,
+        client: TestClient,
+        auth_headers: dict[str, str],
+    ) -> None:
+        """Test that negative file size is rejected."""
+        project_id = uuid4()
+        video_id = uuid4()
+        response = client.post(
+            f"/api/v1/projects/{project_id}/videos/{video_id}/complete",
+            json={"file_size": -1},
+            headers=auth_headers,
+        )
+        assert response.status_code == 422
+
+    def test_get_video_invalid_uuid(
+        self,
+        client: TestClient,
+        auth_headers: dict[str, str],
+    ) -> None:
+        """Test that invalid UUID format is rejected."""
+        project_id = uuid4()
+        response = client.get(
+            f"/api/v1/projects/{project_id}/videos/not-a-uuid",
+            headers=auth_headers,
+        )
+        assert response.status_code == 422
+
+    def test_list_videos_invalid_pagination(
+        self,
+        client: TestClient,
+        auth_headers: dict[str, str],
+    ) -> None:
+        """Test that invalid pagination parameters are rejected."""
+        project_id = uuid4()
+        response = client.get(
+            f"/api/v1/projects/{project_id}/videos?skip=-1&limit=0",
+            headers=auth_headers,
+        )
+        assert response.status_code == 422
