@@ -46,7 +46,7 @@ class TestGenerateS3Key:
 class TestGeneratePresignedUploadUrl:
     """Tests for generate_presigned_upload_url."""
 
-    @patch("app.core.storage.get_storage_client")
+    @patch("app.core.storage.get_public_storage_client")
     @patch("app.core.storage.get_settings")
     def test_generates_url_with_content_type(
         self, mock_settings: MagicMock, mock_client: MagicMock
@@ -74,7 +74,7 @@ class TestGeneratePresignedUploadUrl:
             ExpiresIn=3600,
         )
 
-    @patch("app.core.storage.get_storage_client")
+    @patch("app.core.storage.get_public_storage_client")
     @patch("app.core.storage.get_settings")
     def test_generates_url_without_content_type(
         self, mock_settings: MagicMock, mock_client: MagicMock
