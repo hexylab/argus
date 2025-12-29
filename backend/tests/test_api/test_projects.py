@@ -445,3 +445,161 @@ class TestDeleteProject:
         )
 
         assert response.status_code == 404
+
+
+class TestProjectsAuthorization:
+    """Tests for project authorization (access control)."""
+
+    @patch("app.api.v1.projects.get_supabase_client")
+    def test_get_other_users_project_returns_404(
+        self,
+        mock_get_client: MagicMock,
+        client: TestClient,
+        other_user_auth_headers: dict[str, str],
+    ) -> None:
+        """Test that accessing another user's project returns 404."""
+        project_id = uuid4()
+
+        mock_supabase = MagicMock()
+        # Query returns empty because owner_id doesn't match
+        mock_result = MagicMock()
+        mock_result.data = []
+        mock_supabase.table.return_value.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_result
+        mock_get_client.return_value = mock_supabase
+
+        response = client.get(
+            f"/api/v1/projects/{project_id}",
+            headers=other_user_auth_headers,
+        )
+
+        assert response.status_code == 404
+
+    @patch("app.api.v1.projects.get_supabase_client")
+    def test_update_other_users_project_returns_404(
+        self,
+        mock_get_client: MagicMock,
+        client: TestClient,
+        other_user_auth_headers: dict[str, str],
+    ) -> None:
+        """Test that updating another user's project returns 404."""
+        project_id = uuid4()
+
+        mock_supabase = MagicMock()
+        mock_result = MagicMock()
+        mock_result.data = []
+        mock_supabase.table.return_value.update.return_value.eq.return_value.eq.return_value.execute.return_value = mock_result
+        mock_get_client.return_value = mock_supabase
+
+        response = client.patch(
+            f"/api/v1/projects/{project_id}",
+            json={"name": "Hacked"},
+            headers=other_user_auth_headers,
+        )
+
+        assert response.status_code == 404
+
+    @patch("app.api.v1.projects.get_supabase_client")
+    def test_delete_other_users_project_returns_404(
+        self,
+        mock_get_client: MagicMock,
+        client: TestClient,
+        other_user_auth_headers: dict[str, str],
+    ) -> None:
+        """Test that deleting another user's project returns 404."""
+        project_id = uuid4()
+
+        mock_supabase = MagicMock()
+        mock_result = MagicMock()
+        mock_result.data = []
+        mock_supabase.table.return_value.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_result
+        mock_get_client.return_value = mock_supabase
+
+        response = client.delete(
+            f"/api/v1/projects/{project_id}",
+            headers=other_user_auth_headers,
+        )
+
+        assert response.status_code == 404
+
+
+class TestProjectsPagination:
+    """Tests for project pagination edge cases."""
+
+    def test_list_with_invalid_skip(
+        self,
+        client: TestClient,
+        auth_headers: dict[str, str],
+    ) -> None:
+        """Test listing projects with negative skip."""
+        response = client.get(
+            "/api/v1/projects?skip=-1",
+            headers=auth_headers,
+        )
+        assert response.status_code == 422
+
+    def test_list_with_invalid_limit(
+        self,
+        client: TestClient,
+        auth_headers: dict[str, str],
+    ) -> None:
+        """Test listing projects with limit exceeding maximum."""
+        response = client.get(
+            "/api/v1/projects?limit=101",
+            headers=auth_headers,
+        )
+        assert response.status_code == 422
+
+    def test_list_with_zero_limit(
+        self,
+        client: TestClient,
+        auth_headers: dict[str, str],
+    ) -> None:
+        """Test listing projects with zero limit."""
+        response = client.get(
+            "/api/v1/projects?limit=0",
+            headers=auth_headers,
+        )
+        assert response.status_code == 422
+
+
+class TestProjectsInputValidation:
+    """Tests for project input validation."""
+
+    def test_get_with_invalid_uuid(
+        self,
+        client: TestClient,
+        auth_headers: dict[str, str],
+    ) -> None:
+        """Test getting a project with invalid UUID format."""
+        response = client.get(
+            "/api/v1/projects/not-a-uuid",
+            headers=auth_headers,
+        )
+        assert response.status_code == 422
+
+    def test_create_with_name_too_long(
+        self,
+        client: TestClient,
+        auth_headers: dict[str, str],
+    ) -> None:
+        """Test creating a project with name exceeding maximum length."""
+        response = client.post(
+            "/api/v1/projects",
+            json={"name": "x" * 256},  # Assuming max 255 chars
+            headers=auth_headers,
+        )
+        assert response.status_code == 422
+
+    def test_update_with_invalid_status(
+        self,
+        client: TestClient,
+        auth_headers: dict[str, str],
+    ) -> None:
+        """Test updating a project with invalid status."""
+        project_id = uuid4()
+        response = client.patch(
+            f"/api/v1/projects/{project_id}",
+            json={"status": "invalid_status"},
+            headers=auth_headers,
+        )
+        assert response.status_code == 422

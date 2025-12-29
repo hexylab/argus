@@ -30,6 +30,9 @@ TEST_JWT_SECRET = "test-jwt-secret-for-testing-only"
 # Test user ID (valid UUID format for Supabase auth)
 TEST_USER_ID = "12345678-1234-1234-1234-123456789012"
 
+# Another test user ID for authorization tests
+OTHER_USER_ID = "87654321-4321-4321-4321-210987654321"
+
 
 def get_test_settings() -> Settings:
     """Override settings for testing."""
@@ -82,6 +85,13 @@ def create_test_token(
 def auth_headers() -> dict[str, str]:
     """Authorization headers with valid test token."""
     token = create_test_token()
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+def other_user_auth_headers() -> dict[str, str]:
+    """Authorization headers for a different user."""
+    token = create_test_token(user_id=OTHER_USER_ID, email="other@example.com")
     return {"Authorization": f"Bearer {token}"}
 
 
