@@ -61,6 +61,7 @@ class VideoUpdate(BaseSchema):
     """Schema for updating a video."""
 
     filename: str | None = Field(None, min_length=1, max_length=255)
+    file_size: int | None = Field(None, ge=0)
     duration_seconds: float | None = Field(None, ge=0)
     width: int | None = Field(None, ge=1)
     height: int | None = Field(None, ge=1)

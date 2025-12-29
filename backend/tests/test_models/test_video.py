@@ -159,6 +159,7 @@ class TestVideoUpdate:
         """Test status update."""
         update = VideoUpdate(
             filename=None,
+            file_size=None,
             duration_seconds=None,
             width=None,
             height=None,
@@ -174,6 +175,7 @@ class TestVideoUpdate:
         """Test partial update."""
         update = VideoUpdate(
             filename=None,
+            file_size=None,
             duration_seconds=120.5,
             width=1920,
             height=1080,
@@ -190,6 +192,7 @@ class TestVideoUpdate:
         """Test empty update is valid."""
         update = VideoUpdate(
             filename=None,
+            file_size=None,
             duration_seconds=None,
             width=None,
             height=None,
