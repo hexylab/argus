@@ -28,6 +28,9 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      # CORS settings for browser-based uploads via presigned URLs
+      # Supports multiple ports for flexible local development
+      MINIO_API_CORS_ALLOW_ORIGIN: "http://localhost:3000,http://localhost:3001,http://localhost:3002,http://127.0.0.1:3000,http://127.0.0.1:3001,http://127.0.0.1:3002"
     volumes:
       - minio_data:/data
     ports:
@@ -46,9 +49,12 @@ services:
     depends_on:
       minio:
         condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
     entrypoint: >
       /bin/sh -c "
-      mc alias set myminio http://minio:9000 minioadmin minioadmin;
+      mc alias set myminio http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD};
       mc mb myminio/argus-videos --ignore-existing;
       mc mb myminio/argus-frames --ignore-existing;
       mc mb myminio/argus-models --ignore-existing;
