@@ -33,8 +33,16 @@ def test_settings_with_required_fields() -> None:
     assert settings.database_url == "postgresql://test:test@localhost:5432/test"
 
 
-def test_settings_default_values() -> None:
+def test_settings_default_values(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test settings default values."""
+    # Clear environment variables that could override defaults
+    monkeypatch.delenv("DEBUG", raising=False)
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
+    monkeypatch.delenv("REDIS_URL", raising=False)
+    monkeypatch.delenv("MINIO_ENDPOINT", raising=False)
+    monkeypatch.delenv("MINIO_BUCKET", raising=False)
+    monkeypatch.delenv("MINIO_USE_SSL", raising=False)
+
     settings = Settings(
         supabase_url="http://localhost:9999",
         supabase_anon_key="test-anon-key",

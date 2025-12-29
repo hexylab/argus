@@ -2,11 +2,13 @@
 
 import os
 
-# Set test environment variables BEFORE importing app modules
-os.environ.setdefault("SUPABASE_URL", "http://localhost:9999")
-os.environ.setdefault("SUPABASE_ANON_KEY", "test-anon-key")
-os.environ.setdefault("SUPABASE_JWT_SECRET", "test-jwt-secret-for-testing-only")
-os.environ.setdefault("DATABASE_URL", "postgresql://test:test@localhost:5432/test")
+# Force test environment variables BEFORE importing app modules
+# Using direct assignment instead of setdefault to override Docker env vars
+os.environ["SUPABASE_URL"] = "http://localhost:9999"
+os.environ["SUPABASE_ANON_KEY"] = "test-anon-key"
+os.environ["SUPABASE_JWT_SECRET"] = "test-jwt-secret-for-testing-only"
+os.environ["DATABASE_URL"] = "postgresql://test:test@localhost:5432/test"
+os.environ["DEBUG"] = "false"  # Ensure debug is off for tests
 
 from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
@@ -18,6 +20,9 @@ from fastapi.testclient import TestClient
 
 from app.core.config import Settings, get_settings
 from app.main import app
+
+# Clear cached settings to ensure test env vars are used
+get_settings.cache_clear()
 
 # Test JWT secret - only for testing
 TEST_JWT_SECRET = "test-jwt-secret-for-testing-only"
