@@ -5,6 +5,16 @@ import type {
   ProjectListParams,
 } from "@/types/project";
 
+export async function getProject(
+  accessToken: string,
+  projectId: string
+): Promise<Project> {
+  return apiClient<Project>(`/api/v1/projects/${projectId}`, {
+    method: "GET",
+    accessToken,
+  });
+}
+
 export async function getProjects(
   accessToken: string,
   params: ProjectListParams = {}
