@@ -3,9 +3,9 @@
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, status
+from supabase import Client
 
-from app.api.deps import CurrentUser
-from app.core.supabase import get_supabase_client
+from app.api.deps import Auth
 from app.crud.label import LabelNotFoundError
 from app.crud.label import create_label as crud_create_label
 from app.crud.label import delete_label as crud_delete_label
@@ -19,10 +19,10 @@ from app.models.label import Label, LabelCreate, LabelUpdate
 router = APIRouter(prefix="/projects/{project_id}/labels", tags=["labels"])
 
 
-def _verify_project_ownership(client: object, project_id: UUID, owner_id: UUID) -> None:
+def _verify_project_ownership(client: Client, project_id: UUID, owner_id: UUID) -> None:
     """Verify that the user owns the project."""
     try:
-        crud_get_project(client, project_id, owner_id)  # type: ignore[arg-type]
+        crud_get_project(client, project_id, owner_id)
     except ProjectNotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -34,18 +34,17 @@ def _verify_project_ownership(client: object, project_id: UUID, owner_id: UUID) 
 async def create_label(
     project_id: UUID,
     data: LabelCreate,
-    current_user: CurrentUser,
+    auth: Auth,
 ) -> Label:
     """
     Create a new label in a project.
 
     The user must own the project.
     """
-    client = get_supabase_client()
-    owner_id = UUID(current_user.sub)
+    owner_id = UUID(auth.user.sub)
 
     # Verify project ownership
-    _verify_project_ownership(client, project_id, owner_id)
+    _verify_project_ownership(auth.client, project_id, owner_id)
 
     # Override project_id from path parameter
     create_data = LabelCreate(
@@ -56,13 +55,13 @@ async def create_label(
         sort_order=data.sort_order,
     )
 
-    return crud_create_label(client, create_data)
+    return crud_create_label(auth.client, create_data)
 
 
 @router.get("", response_model=list[Label])
 async def list_labels(
     project_id: UUID,
-    current_user: CurrentUser,
+    auth: Auth,
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(100, ge=1, le=100, description="Maximum number of records"),
 ) -> list[Label]:
@@ -72,34 +71,32 @@ async def list_labels(
     The user must own the project.
     Results are ordered by sort_order and creation date.
     """
-    client = get_supabase_client()
-    owner_id = UUID(current_user.sub)
+    owner_id = UUID(auth.user.sub)
 
     # Verify project ownership
-    _verify_project_ownership(client, project_id, owner_id)
+    _verify_project_ownership(auth.client, project_id, owner_id)
 
-    return crud_get_labels(client, project_id, skip=skip, limit=limit)
+    return crud_get_labels(auth.client, project_id, skip=skip, limit=limit)
 
 
 @router.get("/{label_id}", response_model=Label)
 async def get_label(
     project_id: UUID,
     label_id: UUID,
-    current_user: CurrentUser,
+    auth: Auth,
 ) -> Label:
     """
     Get a specific label by ID.
 
     Returns 404 if the label or project does not exist.
     """
-    client = get_supabase_client()
-    owner_id = UUID(current_user.sub)
+    owner_id = UUID(auth.user.sub)
 
     # Verify project ownership
-    _verify_project_ownership(client, project_id, owner_id)
+    _verify_project_ownership(auth.client, project_id, owner_id)
 
     try:
-        return crud_get_label(client, label_id, project_id)
+        return crud_get_label(auth.client, label_id, project_id)
     except LabelNotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -112,7 +109,7 @@ async def update_label(
     project_id: UUID,
     label_id: UUID,
     data: LabelUpdate,
-    current_user: CurrentUser,
+    auth: Auth,
 ) -> Label:
     """
     Update a label.
@@ -120,14 +117,13 @@ async def update_label(
     Only the fields provided will be updated.
     Returns 404 if the label or project does not exist.
     """
-    client = get_supabase_client()
-    owner_id = UUID(current_user.sub)
+    owner_id = UUID(auth.user.sub)
 
     # Verify project ownership
-    _verify_project_ownership(client, project_id, owner_id)
+    _verify_project_ownership(auth.client, project_id, owner_id)
 
     try:
-        return crud_update_label(client, label_id, project_id, data)
+        return crud_update_label(auth.client, label_id, project_id, data)
     except LabelNotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -139,21 +135,20 @@ async def update_label(
 async def delete_label(
     project_id: UUID,
     label_id: UUID,
-    current_user: CurrentUser,
+    auth: Auth,
 ) -> None:
     """
     Delete a label.
 
     Returns 404 if the label or project does not exist.
     """
-    client = get_supabase_client()
-    owner_id = UUID(current_user.sub)
+    owner_id = UUID(auth.user.sub)
 
     # Verify project ownership
-    _verify_project_ownership(client, project_id, owner_id)
+    _verify_project_ownership(auth.client, project_id, owner_id)
 
     try:
-        crud_delete_label(client, label_id, project_id)
+        crud_delete_label(auth.client, label_id, project_id)
     except LabelNotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

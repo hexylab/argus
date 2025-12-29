@@ -23,3 +23,26 @@ def get_supabase_client() -> Client:
         settings.supabase_url,
         settings.supabase_anon_key,
     )
+
+
+def get_supabase_client_with_auth(access_token: str) -> Client:
+    """
+    Get Supabase client with user's JWT token for RLS.
+
+    This creates a new client instance with the user's access token
+    set in the Authorization header, enabling RLS policies to work correctly.
+
+    Args:
+        access_token: The user's JWT access token from Supabase Auth.
+
+    Returns:
+        Supabase client instance with auth configured.
+    """
+    settings = get_settings()
+    client = create_client(
+        settings.supabase_url,
+        settings.supabase_anon_key,
+    )
+    # Set the auth token for RLS
+    client.postgrest.auth(access_token)
+    return client

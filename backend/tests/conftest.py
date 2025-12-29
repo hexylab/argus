@@ -13,12 +13,15 @@ os.environ["DEBUG"] = "false"  # Ensure debug is off for tests
 from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from unittest.mock import MagicMock
 
 import jwt
 import pytest
 from fastapi.testclient import TestClient
 
+from app.api.deps import AuthContext, get_auth_context
 from app.core.config import Settings, get_settings
+from app.core.security import TokenPayload
 from app.main import app
 
 # Clear cached settings to ensure test env vars are used
@@ -52,8 +55,67 @@ def test_settings() -> Settings:
 
 
 @pytest.fixture
-def client() -> Generator[TestClient, None, None]:
-    """FastAPI test client with mocked settings."""
+def mock_supabase() -> MagicMock:
+    """Create a mock Supabase client."""
+    return MagicMock()
+
+
+@pytest.fixture
+def client(mock_supabase: MagicMock) -> Generator[TestClient, None, None]:
+    """FastAPI test client with mocked settings and auth context."""
+    app.dependency_overrides[get_settings] = get_test_settings
+
+    # Create a mock auth context for the default test user
+    def get_mock_auth_context() -> AuthContext:
+        return AuthContext(
+            user=TokenPayload(
+                sub=TEST_USER_ID,
+                aud="authenticated",
+                exp=datetime.now(tz=UTC) + timedelta(hours=1),
+                iat=datetime.now(tz=UTC),
+                email="test@example.com",
+                role="authenticated",
+            ),
+            access_token="test-token",
+            client=mock_supabase,
+        )
+
+    app.dependency_overrides[get_auth_context] = get_mock_auth_context
+
+    with TestClient(app) as c:
+        yield c
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def client_other_user(mock_supabase: MagicMock) -> Generator[TestClient, None, None]:
+    """FastAPI test client authenticated as a different user."""
+    app.dependency_overrides[get_settings] = get_test_settings
+
+    def get_mock_auth_context() -> AuthContext:
+        return AuthContext(
+            user=TokenPayload(
+                sub=OTHER_USER_ID,
+                aud="authenticated",
+                exp=datetime.now(tz=UTC) + timedelta(hours=1),
+                iat=datetime.now(tz=UTC),
+                email="other@example.com",
+                role="authenticated",
+            ),
+            access_token="other-test-token",
+            client=mock_supabase,
+        )
+
+    app.dependency_overrides[get_auth_context] = get_mock_auth_context
+
+    with TestClient(app) as c:
+        yield c
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def client_no_auth() -> Generator[TestClient, None, None]:
+    """FastAPI test client without auth override (for testing auth failures)."""
     app.dependency_overrides[get_settings] = get_test_settings
     with TestClient(app) as c:
         yield c

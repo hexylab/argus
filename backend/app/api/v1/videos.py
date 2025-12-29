@@ -5,15 +5,15 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, Field
+from supabase import Client
 
-from app.api.deps import CurrentUser
+from app.api.deps import Auth
 from app.core.storage import (
     DEFAULT_PRESIGNED_URL_EXPIRES_IN,
     delete_object,
     generate_presigned_upload_url,
     generate_s3_key,
 )
-from app.core.supabase import get_supabase_client
 from app.crud.project import ProjectNotFoundError
 from app.crud.project import get_project as crud_get_project
 from app.crud.video import VideoNotFoundError
@@ -49,10 +49,10 @@ class UploadCompleteRequest(BaseModel):
     file_size: int | None = Field(None, ge=0, description="File size in bytes")
 
 
-def _verify_project_ownership(client: object, project_id: UUID, owner_id: UUID) -> None:
+def _verify_project_ownership(client: Client, project_id: UUID, owner_id: UUID) -> None:
     """Verify that the user owns the project."""
     try:
-        crud_get_project(client, project_id, owner_id)  # type: ignore[arg-type]
+        crud_get_project(client, project_id, owner_id)
     except ProjectNotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -64,7 +64,7 @@ def _verify_project_ownership(client: object, project_id: UUID, owner_id: UUID) 
 async def get_upload_url(
     project_id: UUID,
     data: UploadUrlRequest,
-    current_user: CurrentUser,
+    auth: Auth,
 ) -> UploadUrlResponse:
     """
     Get a presigned URL for uploading a video.
@@ -78,11 +78,10 @@ async def get_upload_url(
     1. Upload the file directly to S3 using the presigned URL
     2. Call POST /videos/{video_id}/complete when done
     """
-    client = get_supabase_client()
-    owner_id = UUID(current_user.sub)
+    owner_id = UUID(auth.user.sub)
 
     # Verify project ownership
-    _verify_project_ownership(client, project_id, owner_id)
+    _verify_project_ownership(auth.client, project_id, owner_id)
 
     # Generate video ID and S3 key
     video_id = uuid4()
@@ -96,7 +95,7 @@ async def get_upload_url(
         s3_key=s3_key,
         mime_type=data.mime_type,
     )
-    video = crud_create_video(client, video_data)
+    video = crud_create_video(auth.client, video_data)
 
     # Generate presigned URL
     upload_url = generate_presigned_upload_url(
@@ -118,7 +117,7 @@ async def mark_upload_complete(
     project_id: UUID,
     video_id: UUID,
     data: UploadCompleteRequest,
-    current_user: CurrentUser,
+    auth: Auth,
 ) -> Video:
     """
     Mark a video upload as complete and start frame extraction.
@@ -130,15 +129,14 @@ async def mark_upload_complete(
     # Import here to avoid circular imports
     from app.tasks.frame_extraction import extract_frames
 
-    client = get_supabase_client()
-    owner_id = UUID(current_user.sub)
+    owner_id = UUID(auth.user.sub)
 
     # Verify project ownership
-    _verify_project_ownership(client, project_id, owner_id)
+    _verify_project_ownership(auth.client, project_id, owner_id)
 
     try:
         # Get the video to check current status
-        video = crud_get_video(client, video_id, project_id)
+        video = crud_get_video(auth.client, video_id, project_id)
 
         if video.status != VideoStatus.UPLOADING:
             raise HTTPException(
@@ -153,7 +151,9 @@ async def mark_upload_complete(
                 status=VideoStatus.PROCESSING, file_size=data.file_size
             )
 
-        updated_video = crud_update_video(client, video_id, project_id, update_data)
+        updated_video = crud_update_video(
+            auth.client, video_id, project_id, update_data
+        )
 
         # Queue frame extraction task
         extract_frames.delay(str(video_id), str(project_id))
@@ -170,7 +170,7 @@ async def mark_upload_complete(
 @router.get("", response_model=list[Video])
 async def list_videos(
     project_id: UUID,
-    current_user: CurrentUser,
+    auth: Auth,
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(100, ge=1, le=100, description="Maximum number of records"),
 ) -> list[Video]:
@@ -180,34 +180,32 @@ async def list_videos(
     The user must own the project.
     Results are ordered by creation date (newest first).
     """
-    client = get_supabase_client()
-    owner_id = UUID(current_user.sub)
+    owner_id = UUID(auth.user.sub)
 
     # Verify project ownership
-    _verify_project_ownership(client, project_id, owner_id)
+    _verify_project_ownership(auth.client, project_id, owner_id)
 
-    return crud_get_videos(client, project_id, skip=skip, limit=limit)
+    return crud_get_videos(auth.client, project_id, skip=skip, limit=limit)
 
 
 @router.get("/{video_id}", response_model=Video)
 async def get_video(
     project_id: UUID,
     video_id: UUID,
-    current_user: CurrentUser,
+    auth: Auth,
 ) -> Video:
     """
     Get a specific video by ID.
 
     Returns 404 if the video or project does not exist.
     """
-    client = get_supabase_client()
-    owner_id = UUID(current_user.sub)
+    owner_id = UUID(auth.user.sub)
 
     # Verify project ownership
-    _verify_project_ownership(client, project_id, owner_id)
+    _verify_project_ownership(auth.client, project_id, owner_id)
 
     try:
-        return crud_get_video(client, video_id, project_id)
+        return crud_get_video(auth.client, video_id, project_id)
     except VideoNotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -219,7 +217,7 @@ async def get_video(
 async def delete_video(
     project_id: UUID,
     video_id: UUID,
-    current_user: CurrentUser,
+    auth: Auth,
 ) -> None:
     """
     Delete a video.
@@ -227,18 +225,17 @@ async def delete_video(
     This also deletes the video file from S3.
     Returns 404 if the video or project does not exist.
     """
-    client = get_supabase_client()
-    owner_id = UUID(current_user.sub)
+    owner_id = UUID(auth.user.sub)
 
     # Verify project ownership
-    _verify_project_ownership(client, project_id, owner_id)
+    _verify_project_ownership(auth.client, project_id, owner_id)
 
     try:
         # Get video to get S3 key
-        video = crud_get_video(client, video_id, project_id)
+        video = crud_get_video(auth.client, video_id, project_id)
 
         # Delete from database
-        crud_delete_video(client, video_id, project_id)
+        crud_delete_video(auth.client, video_id, project_id)
 
         # Delete from S3 (best effort, don't fail if S3 delete fails)
         with contextlib.suppress(Exception):

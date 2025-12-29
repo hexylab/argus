@@ -12,43 +12,47 @@ from tests.conftest import TEST_USER_ID
 class TestVideosAuth:
     """Tests for video endpoint authentication."""
 
-    def test_get_upload_url_no_auth(self, client: TestClient) -> None:
+    def test_get_upload_url_no_auth(self, client_no_auth: TestClient) -> None:
         """Test that getting upload URL without auth fails."""
         project_id = uuid4()
-        response = client.post(
+        response = client_no_auth.post(
             f"/api/v1/projects/{project_id}/videos/upload-url",
             json={"filename": "test.mp4"},
         )
         assert response.status_code in (401, 403)
 
-    def test_list_videos_no_auth(self, client: TestClient) -> None:
+    def test_list_videos_no_auth(self, client_no_auth: TestClient) -> None:
         """Test that listing videos without auth fails."""
         project_id = uuid4()
-        response = client.get(f"/api/v1/projects/{project_id}/videos")
+        response = client_no_auth.get(f"/api/v1/projects/{project_id}/videos")
         assert response.status_code in (401, 403)
 
-    def test_get_video_no_auth(self, client: TestClient) -> None:
+    def test_get_video_no_auth(self, client_no_auth: TestClient) -> None:
         """Test that getting a video without auth fails."""
         project_id = uuid4()
         video_id = uuid4()
-        response = client.get(f"/api/v1/projects/{project_id}/videos/{video_id}")
+        response = client_no_auth.get(
+            f"/api/v1/projects/{project_id}/videos/{video_id}"
+        )
         assert response.status_code in (401, 403)
 
-    def test_complete_upload_no_auth(self, client: TestClient) -> None:
+    def test_complete_upload_no_auth(self, client_no_auth: TestClient) -> None:
         """Test that completing upload without auth fails."""
         project_id = uuid4()
         video_id = uuid4()
-        response = client.post(
+        response = client_no_auth.post(
             f"/api/v1/projects/{project_id}/videos/{video_id}/complete",
             json={},
         )
         assert response.status_code in (401, 403)
 
-    def test_delete_video_no_auth(self, client: TestClient) -> None:
+    def test_delete_video_no_auth(self, client_no_auth: TestClient) -> None:
         """Test that deleting a video without auth fails."""
         project_id = uuid4()
         video_id = uuid4()
-        response = client.delete(f"/api/v1/projects/{project_id}/videos/{video_id}")
+        response = client_no_auth.delete(
+            f"/api/v1/projects/{project_id}/videos/{video_id}"
+        )
         assert response.status_code in (401, 403)
 
 
@@ -56,19 +60,16 @@ class TestGetUploadUrl:
     """Tests for POST /api/v1/projects/{project_id}/videos/upload-url."""
 
     @patch("app.api.v1.videos.generate_presigned_upload_url")
-    @patch("app.api.v1.videos.get_supabase_client")
     def test_get_upload_url_success(
         self,
-        mock_get_client: MagicMock,
         mock_presigned: MagicMock,
         client: TestClient,
-        auth_headers: dict[str, str],
+        mock_supabase: MagicMock,
     ) -> None:
         """Test getting an upload URL successfully."""
         project_id = uuid4()
         now = datetime.now(tz=UTC).isoformat()
 
-        mock_supabase = MagicMock()
         # Mock for project ownership check
         mock_project_result = MagicMock()
         mock_project_result.data = [
@@ -111,14 +112,12 @@ class TestGetUploadUrl:
         mock_supabase.table.return_value.insert.return_value.execute.return_value = (
             mock_video_result
         )
-        mock_get_client.return_value = mock_supabase
 
         mock_presigned.return_value = "https://minio.example.com/presigned-url"
 
         response = client.post(
             f"/api/v1/projects/{project_id}/videos/upload-url",
             json={"filename": "test.mp4", "mime_type": "video/mp4"},
-            headers=auth_headers,
         )
 
         assert response.status_code == 200
@@ -129,26 +128,21 @@ class TestGetUploadUrl:
         assert "s3_key" in data
         assert "expires_in" in data
 
-    @patch("app.api.v1.videos.get_supabase_client")
     def test_get_upload_url_project_not_found(
         self,
-        mock_get_client: MagicMock,
         client: TestClient,
-        auth_headers: dict[str, str],
+        mock_supabase: MagicMock,
     ) -> None:
         """Test getting upload URL for non-existent project."""
         project_id = uuid4()
 
-        mock_supabase = MagicMock()
         mock_result = MagicMock()
         mock_result.data = []
         mock_supabase.table.return_value.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_result
-        mock_get_client.return_value = mock_supabase
 
         response = client.post(
             f"/api/v1/projects/{project_id}/videos/upload-url",
             json={"filename": "test.mp4"},
-            headers=auth_headers,
         )
 
         assert response.status_code == 404
@@ -158,20 +152,17 @@ class TestCompleteUpload:
     """Tests for POST /api/v1/projects/{project_id}/videos/{video_id}/complete."""
 
     @patch("app.tasks.frame_extraction.extract_frames")
-    @patch("app.api.v1.videos.get_supabase_client")
     def test_complete_upload_success(
         self,
-        mock_get_client: MagicMock,
         mock_extract_frames: MagicMock,
         client: TestClient,
-        auth_headers: dict[str, str],
+        mock_supabase: MagicMock,
     ) -> None:
         """Test completing an upload successfully."""
         project_id = uuid4()
         video_id = uuid4()
         now = datetime.now(tz=UTC).isoformat()
 
-        mock_supabase = MagicMock()
         # Mock for project ownership check
         mock_project_result = MagicMock()
         mock_project_result.data = [
@@ -240,12 +231,10 @@ class TestCompleteUpload:
             mock_video_result,
         ]
         mock_supabase.table.return_value.update.return_value.eq.return_value.eq.return_value.execute.return_value = mock_update_result
-        mock_get_client.return_value = mock_supabase
 
         response = client.post(
             f"/api/v1/projects/{project_id}/videos/{video_id}/complete",
             json={"file_size": 5000000},
-            headers=auth_headers,
         )
 
         assert response.status_code == 200
@@ -258,19 +247,16 @@ class TestCompleteUpload:
             str(video_id), str(project_id)
         )
 
-    @patch("app.api.v1.videos.get_supabase_client")
     def test_complete_upload_video_not_found(
         self,
-        mock_get_client: MagicMock,
         client: TestClient,
-        auth_headers: dict[str, str],
+        mock_supabase: MagicMock,
     ) -> None:
         """Test completing upload for non-existent video."""
         project_id = uuid4()
         video_id = uuid4()
         now = datetime.now(tz=UTC).isoformat()
 
-        mock_supabase = MagicMock()
         # Mock for project ownership check
         mock_project_result = MagicMock()
         mock_project_result.data = [
@@ -294,29 +280,24 @@ class TestCompleteUpload:
             mock_project_result,
             mock_video_result,
         ]
-        mock_get_client.return_value = mock_supabase
 
         response = client.post(
             f"/api/v1/projects/{project_id}/videos/{video_id}/complete",
             json={},
-            headers=auth_headers,
         )
 
         assert response.status_code == 404
 
-    @patch("app.api.v1.videos.get_supabase_client")
     def test_complete_upload_wrong_status(
         self,
-        mock_get_client: MagicMock,
         client: TestClient,
-        auth_headers: dict[str, str],
+        mock_supabase: MagicMock,
     ) -> None:
         """Test completing upload for video not in uploading status."""
         project_id = uuid4()
         video_id = uuid4()
         now = datetime.now(tz=UTC).isoformat()
 
-        mock_supabase = MagicMock()
         # Mock for project ownership check
         mock_project_result = MagicMock()
         mock_project_result.data = [
@@ -360,12 +341,10 @@ class TestCompleteUpload:
             mock_project_result,
             mock_video_result,
         ]
-        mock_get_client.return_value = mock_supabase
 
         response = client.post(
             f"/api/v1/projects/{project_id}/videos/{video_id}/complete",
             json={},
-            headers=auth_headers,
         )
 
         assert response.status_code == 400
@@ -374,18 +353,15 @@ class TestCompleteUpload:
 class TestListVideos:
     """Tests for GET /api/v1/projects/{project_id}/videos."""
 
-    @patch("app.api.v1.videos.get_supabase_client")
     def test_list_empty(
         self,
-        mock_get_client: MagicMock,
         client: TestClient,
-        auth_headers: dict[str, str],
+        mock_supabase: MagicMock,
     ) -> None:
         """Test listing videos when none exist."""
         project_id = uuid4()
         now = datetime.now(tz=UTC).isoformat()
 
-        mock_supabase = MagicMock()
         # Mock for project ownership check
         mock_project_result = MagicMock()
         mock_project_result.data = [
@@ -406,29 +382,24 @@ class TestListVideos:
         mock_videos_result = MagicMock()
         mock_videos_result.data = []
         mock_supabase.table.return_value.select.return_value.eq.return_value.order.return_value.range.return_value.execute.return_value = mock_videos_result
-        mock_get_client.return_value = mock_supabase
 
         response = client.get(
             f"/api/v1/projects/{project_id}/videos",
-            headers=auth_headers,
         )
 
         assert response.status_code == 200
         assert response.json() == []
 
-    @patch("app.api.v1.videos.get_supabase_client")
     def test_list_with_data(
         self,
-        mock_get_client: MagicMock,
         client: TestClient,
-        auth_headers: dict[str, str],
+        mock_supabase: MagicMock,
     ) -> None:
         """Test listing videos with some data."""
         project_id = uuid4()
         video_id = uuid4()
         now = datetime.now(tz=UTC).isoformat()
 
-        mock_supabase = MagicMock()
         # Mock for project ownership check
         mock_project_result = MagicMock()
         mock_project_result.data = [
@@ -469,11 +440,9 @@ class TestListVideos:
             }
         ]
         mock_supabase.table.return_value.select.return_value.eq.return_value.order.return_value.range.return_value.execute.return_value = mock_videos_result
-        mock_get_client.return_value = mock_supabase
 
         response = client.get(
             f"/api/v1/projects/{project_id}/videos",
-            headers=auth_headers,
         )
 
         assert response.status_code == 200
@@ -485,19 +454,16 @@ class TestListVideos:
 class TestGetVideo:
     """Tests for GET /api/v1/projects/{project_id}/videos/{video_id}."""
 
-    @patch("app.api.v1.videos.get_supabase_client")
     def test_get_existing(
         self,
-        mock_get_client: MagicMock,
         client: TestClient,
-        auth_headers: dict[str, str],
+        mock_supabase: MagicMock,
     ) -> None:
         """Test getting an existing video."""
         project_id = uuid4()
         video_id = uuid4()
         now = datetime.now(tz=UTC).isoformat()
 
-        mock_supabase = MagicMock()
         # Mock for project ownership check
         mock_project_result = MagicMock()
         mock_project_result.data = [
@@ -541,11 +507,9 @@ class TestGetVideo:
             mock_project_result,
             mock_video_result,
         ]
-        mock_get_client.return_value = mock_supabase
 
         response = client.get(
             f"/api/v1/projects/{project_id}/videos/{video_id}",
-            headers=auth_headers,
         )
 
         assert response.status_code == 200
@@ -553,19 +517,16 @@ class TestGetVideo:
         assert data["id"] == str(video_id)
         assert data["filename"] == "test.mp4"
 
-    @patch("app.api.v1.videos.get_supabase_client")
     def test_get_nonexistent(
         self,
-        mock_get_client: MagicMock,
         client: TestClient,
-        auth_headers: dict[str, str],
+        mock_supabase: MagicMock,
     ) -> None:
         """Test getting a non-existent video."""
         project_id = uuid4()
         video_id = uuid4()
         now = datetime.now(tz=UTC).isoformat()
 
-        mock_supabase = MagicMock()
         # Mock for project ownership check
         mock_project_result = MagicMock()
         mock_project_result.data = [
@@ -589,11 +550,9 @@ class TestGetVideo:
             mock_project_result,
             mock_video_result,
         ]
-        mock_get_client.return_value = mock_supabase
 
         response = client.get(
             f"/api/v1/projects/{project_id}/videos/{video_id}",
-            headers=auth_headers,
         )
 
         assert response.status_code == 404
@@ -603,13 +562,11 @@ class TestDeleteVideo:
     """Tests for DELETE /api/v1/projects/{project_id}/videos/{video_id}."""
 
     @patch("app.api.v1.videos.delete_object")
-    @patch("app.api.v1.videos.get_supabase_client")
     def test_delete_existing(
         self,
-        mock_get_client: MagicMock,
         mock_delete_object: MagicMock,
         client: TestClient,
-        auth_headers: dict[str, str],
+        mock_supabase: MagicMock,
     ) -> None:
         """Test deleting an existing video."""
         project_id = uuid4()
@@ -617,7 +574,6 @@ class TestDeleteVideo:
         now = datetime.now(tz=UTC).isoformat()
         s3_key = f"projects/{project_id}/videos/{video_id}/test.mp4"
 
-        mock_supabase = MagicMock()
         # Mock for project ownership check
         mock_project_result = MagicMock()
         mock_project_result.data = [
@@ -663,29 +619,24 @@ class TestDeleteVideo:
             mock_video_result,  # For delete verification
         ]
         mock_supabase.table.return_value.delete.return_value.eq.return_value.eq.return_value.execute.return_value = MagicMock()
-        mock_get_client.return_value = mock_supabase
 
         response = client.delete(
             f"/api/v1/projects/{project_id}/videos/{video_id}",
-            headers=auth_headers,
         )
 
         assert response.status_code == 204
         mock_delete_object.assert_called_once_with(s3_key)
 
-    @patch("app.api.v1.videos.get_supabase_client")
     def test_delete_nonexistent(
         self,
-        mock_get_client: MagicMock,
         client: TestClient,
-        auth_headers: dict[str, str],
+        mock_supabase: MagicMock,
     ) -> None:
         """Test deleting a non-existent video."""
         project_id = uuid4()
         video_id = uuid4()
         now = datetime.now(tz=UTC).isoformat()
 
-        mock_supabase = MagicMock()
         # Mock for project ownership check
         mock_project_result = MagicMock()
         mock_project_result.data = [
@@ -709,11 +660,9 @@ class TestDeleteVideo:
             mock_project_result,
             mock_video_result,
         ]
-        mock_get_client.return_value = mock_supabase
 
         response = client.delete(
             f"/api/v1/projects/{project_id}/videos/{video_id}",
-            headers=auth_headers,
         )
 
         assert response.status_code == 404
@@ -722,50 +671,40 @@ class TestDeleteVideo:
 class TestVideosAuthorization:
     """Tests for video authorization (access control)."""
 
-    @patch("app.api.v1.videos.get_supabase_client")
     def test_access_other_users_project_videos_returns_404(
         self,
-        mock_get_client: MagicMock,
-        client: TestClient,
-        other_user_auth_headers: dict[str, str],
+        client_other_user: TestClient,
+        mock_supabase: MagicMock,
     ) -> None:
         """Test that accessing videos in another user's project returns 404."""
         project_id = uuid4()
 
-        mock_supabase = MagicMock()
         # Project not found because owner_id doesn't match
         mock_result = MagicMock()
         mock_result.data = []
         mock_supabase.table.return_value.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_result
-        mock_get_client.return_value = mock_supabase
 
-        response = client.get(
+        response = client_other_user.get(
             f"/api/v1/projects/{project_id}/videos",
-            headers=other_user_auth_headers,
         )
 
         assert response.status_code == 404
 
-    @patch("app.api.v1.videos.get_supabase_client")
     def test_upload_to_other_users_project_returns_404(
         self,
-        mock_get_client: MagicMock,
-        client: TestClient,
-        other_user_auth_headers: dict[str, str],
+        client_other_user: TestClient,
+        mock_supabase: MagicMock,
     ) -> None:
         """Test that uploading to another user's project returns 404."""
         project_id = uuid4()
 
-        mock_supabase = MagicMock()
         mock_result = MagicMock()
         mock_result.data = []
         mock_supabase.table.return_value.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_result
-        mock_get_client.return_value = mock_supabase
 
-        response = client.post(
+        response = client_other_user.post(
             f"/api/v1/projects/{project_id}/videos/upload-url",
             json={"filename": "test.mp4"},
-            headers=other_user_auth_headers,
         )
 
         assert response.status_code == 404
@@ -774,19 +713,16 @@ class TestVideosAuthorization:
 class TestVideosStatusTransitions:
     """Tests for video status state machine."""
 
-    @patch("app.api.v1.videos.get_supabase_client")
     def test_complete_upload_from_processing_fails(
         self,
-        mock_get_client: MagicMock,
         client: TestClient,
-        auth_headers: dict[str, str],
+        mock_supabase: MagicMock,
     ) -> None:
         """Test that completing upload for video in processing status fails."""
         project_id = uuid4()
         video_id = uuid4()
         now = datetime.now(tz=UTC).isoformat()
 
-        mock_supabase = MagicMock()
         mock_project_result = MagicMock()
         mock_project_result.data = [
             {
@@ -828,30 +764,25 @@ class TestVideosStatusTransitions:
             mock_project_result,
             mock_video_result,
         ]
-        mock_get_client.return_value = mock_supabase
 
         response = client.post(
             f"/api/v1/projects/{project_id}/videos/{video_id}/complete",
             json={},
-            headers=auth_headers,
         )
 
         assert response.status_code == 400
         assert "not in uploading state" in response.json()["detail"].lower()
 
-    @patch("app.api.v1.videos.get_supabase_client")
     def test_complete_upload_from_failed_fails(
         self,
-        mock_get_client: MagicMock,
         client: TestClient,
-        auth_headers: dict[str, str],
+        mock_supabase: MagicMock,
     ) -> None:
         """Test that completing upload for video in failed status fails."""
         project_id = uuid4()
         video_id = uuid4()
         now = datetime.now(tz=UTC).isoformat()
 
-        mock_supabase = MagicMock()
         mock_project_result = MagicMock()
         mock_project_result.data = [
             {
@@ -893,12 +824,10 @@ class TestVideosStatusTransitions:
             mock_project_result,
             mock_video_result,
         ]
-        mock_get_client.return_value = mock_supabase
 
         response = client.post(
             f"/api/v1/projects/{project_id}/videos/{video_id}/complete",
             json={},
-            headers=auth_headers,
         )
 
         assert response.status_code == 400
@@ -910,35 +839,30 @@ class TestVideosInputValidation:
     def test_upload_url_empty_filename(
         self,
         client: TestClient,
-        auth_headers: dict[str, str],
     ) -> None:
         """Test that empty filename is rejected."""
         project_id = uuid4()
         response = client.post(
             f"/api/v1/projects/{project_id}/videos/upload-url",
             json={"filename": ""},
-            headers=auth_headers,
         )
         assert response.status_code == 422
 
     def test_upload_url_filename_too_long(
         self,
         client: TestClient,
-        auth_headers: dict[str, str],
     ) -> None:
         """Test that filename exceeding max length is rejected."""
         project_id = uuid4()
         response = client.post(
             f"/api/v1/projects/{project_id}/videos/upload-url",
             json={"filename": "x" * 256 + ".mp4"},
-            headers=auth_headers,
         )
         assert response.status_code == 422
 
     def test_complete_upload_negative_file_size(
         self,
         client: TestClient,
-        auth_headers: dict[str, str],
     ) -> None:
         """Test that negative file size is rejected."""
         project_id = uuid4()
@@ -946,32 +870,27 @@ class TestVideosInputValidation:
         response = client.post(
             f"/api/v1/projects/{project_id}/videos/{video_id}/complete",
             json={"file_size": -1},
-            headers=auth_headers,
         )
         assert response.status_code == 422
 
     def test_get_video_invalid_uuid(
         self,
         client: TestClient,
-        auth_headers: dict[str, str],
     ) -> None:
         """Test that invalid UUID format is rejected."""
         project_id = uuid4()
         response = client.get(
             f"/api/v1/projects/{project_id}/videos/not-a-uuid",
-            headers=auth_headers,
         )
         assert response.status_code == 422
 
     def test_list_videos_invalid_pagination(
         self,
         client: TestClient,
-        auth_headers: dict[str, str],
     ) -> None:
         """Test that invalid pagination parameters are rejected."""
         project_id = uuid4()
         response = client.get(
             f"/api/v1/projects/{project_id}/videos?skip=-1&limit=0",
-            headers=auth_headers,
         )
         assert response.status_code == 422
