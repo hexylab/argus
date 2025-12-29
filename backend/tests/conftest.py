@@ -27,6 +27,9 @@ get_settings.cache_clear()
 # Test JWT secret - only for testing
 TEST_JWT_SECRET = "test-jwt-secret-for-testing-only"
 
+# Test user ID (valid UUID format for Supabase auth)
+TEST_USER_ID = "12345678-1234-1234-1234-123456789012"
+
 
 def get_test_settings() -> Settings:
     """Override settings for testing."""
@@ -55,7 +58,7 @@ def client() -> Generator[TestClient, None, None]:
 
 
 def create_test_token(
-    user_id: str = "test-user-id",
+    user_id: str = TEST_USER_ID,
     email: str = "test@example.com",
     expires_delta: timedelta | None = None,
 ) -> str:
