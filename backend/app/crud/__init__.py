@@ -1,5 +1,13 @@
 """CRUD operations module."""
 
+from app.crud.frame import (
+    create_frame,
+    create_frames_bulk,
+    delete_frame,
+    delete_frames_by_video,
+    get_frame,
+    get_frames,
+)
 from app.crud.label import (
     create_label,
     delete_label,
@@ -23,12 +31,18 @@ from app.crud.video import (
 )
 
 __all__ = [
+    "create_frame",
+    "create_frames_bulk",
     "create_label",
     "create_project",
     "create_video",
+    "delete_frame",
+    "delete_frames_by_video",
     "delete_label",
     "delete_project",
     "delete_video",
+    "get_frame",
+    "get_frames",
     "get_label",
     "get_labels",
     "get_project",
