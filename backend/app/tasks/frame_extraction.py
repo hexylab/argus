@@ -8,6 +8,7 @@ from typing import Any
 from uuid import UUID
 
 import ffmpeg
+import jwt
 from celery import Task
 from PIL import Image
 from supabase import create_client
@@ -34,10 +35,30 @@ THUMBNAIL_SIZE = (320, 180)
 FRAME_INTERVAL_SECONDS = 1.0
 
 
-def get_supabase_client() -> Any:
-    """Get Supabase client for worker tasks."""
+def generate_service_role_jwt() -> str:
+    """Generate a service_role JWT for bypassing RLS.
+
+    This JWT has the same structure as Supabase's service_role key,
+    allowing the worker to bypass Row Level Security policies.
+    """
     settings = get_settings()
-    return create_client(settings.supabase_url, settings.supabase_anon_key)
+    payload = {
+        "role": "service_role",
+        "iss": "supabase",
+        "iat": 0,  # Issued at epoch (never expires effectively)
+        "exp": 9999999999,  # Far future expiration
+    }
+    return jwt.encode(payload, settings.supabase_jwt_secret, algorithm="HS256")
+
+
+def get_supabase_client() -> Any:
+    """Get Supabase client for worker tasks.
+
+    Uses a generated service_role JWT to bypass RLS.
+    """
+    settings = get_settings()
+    service_role_key = generate_service_role_jwt()
+    return create_client(settings.supabase_url, service_role_key)
 
 
 def get_video_info(video_path: Path) -> dict[str, Any]:

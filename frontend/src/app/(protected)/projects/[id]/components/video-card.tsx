@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import type { Video } from "@/types/video";
 import {
   Card,
@@ -131,14 +131,20 @@ function formatDuration(seconds: number | null): string {
 export function VideoCard({ video, projectId, index = 0 }: VideoCardProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const [formattedDate, setFormattedDate] = useState<string>("");
 
-  const formattedDate = new Date(video.created_at).toLocaleDateString("ja-JP", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  // Format date on client side only to avoid hydration mismatch
+  useEffect(() => {
+    setFormattedDate(
+      new Date(video.created_at).toLocaleDateString("ja-JP", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    );
+  }, [video.created_at]);
 
   const status = statusConfig[video.status];
 
