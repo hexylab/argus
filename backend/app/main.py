@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.deps import CurrentUser
 from app.api.v1 import (
     annotations_router,
+    export_router,
     frames_router,
     labels_router,
     projects_router,
@@ -37,6 +38,7 @@ app.include_router(labels_router, prefix="/api/v1")
 app.include_router(videos_router, prefix="/api/v1")
 app.include_router(frames_router, prefix="/api/v1")
 app.include_router(annotations_router, prefix="/api/v1")
+app.include_router(export_router, prefix="/api/v1")
 
 
 @app.get("/health")
