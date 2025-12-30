@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import type { FrameDetail } from "@/types/frame";
+import type { Label } from "@/types/label";
 
 const AnnotationCanvas = dynamic(
   () =>
@@ -43,14 +44,16 @@ const AnnotationCanvas = dynamic(
 
 interface AnnotationClientProps {
   frame: FrameDetail;
+  labels: Label[];
 }
 
-export function AnnotationClient({ frame }: AnnotationClientProps) {
+export function AnnotationClient({ frame, labels }: AnnotationClientProps) {
   return (
     <AnnotationCanvas
       imageUrl={frame.image_url}
       initialWidth={frame.width ?? undefined}
       initialHeight={frame.height ?? undefined}
+      labels={labels}
     />
   );
 }
