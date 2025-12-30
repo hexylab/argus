@@ -25,11 +25,9 @@ interface BoundingBoxProps {
 }
 
 const MIN_SIZE = 10;
-const LABEL_HEIGHT = 22;
-const LABEL_PADDING_X = 8;
-const LABEL_PADDING_Y = 4;
-const LABEL_FONT_SIZE = 11;
-const LABEL_OFFSET_Y = 4; // Gap between label and bbox
+const LABEL_HEIGHT = 20;
+const LABEL_PADDING_X = 6;
+const LABEL_FONT_SIZE = 12;
 
 export function BoundingBox({
   data,
@@ -176,37 +174,29 @@ export function BoundingBox({
   };
 
   // Calculate label width based on text
-  const labelWidth = data.labelName.length * 7 + LABEL_PADDING_X * 2;
+  const labelWidth = data.labelName.length * 8 + LABEL_PADDING_X * 2;
 
-  // Calculate label position (above the bbox, with small gap)
+  // Calculate label position (adjacent to bbox, no gap)
   const labelX = liveBox.x;
-  const labelY = liveBox.y - LABEL_HEIGHT - LABEL_OFFSET_Y;
+  const labelY = liveBox.y - LABEL_HEIGHT;
 
   return (
     <>
-      {/* Label - floats above the bounding box */}
+      {/* Label - adjacent to the bounding box */}
       <Group x={labelX} y={labelY} listening={false}>
-        {/* Label background with subtle shadow effect */}
         <Rect
           width={labelWidth}
           height={LABEL_HEIGHT}
           fill={data.labelColor}
-          cornerRadius={4}
-          shadowColor="rgba(0,0,0,0.3)"
-          shadowBlur={4}
-          shadowOffsetY={2}
-          shadowEnabled={isSelected}
+          cornerRadius={[4, 4, 0, 0]}
         />
-        {/* Label text */}
         <Text
           x={LABEL_PADDING_X}
-          y={LABEL_PADDING_Y + 1}
+          y={4}
           text={data.labelName}
           fontSize={LABEL_FONT_SIZE}
-          fontFamily="system-ui, -apple-system, sans-serif"
-          fontStyle="600"
+          fontFamily="system-ui, sans-serif"
           fill="white"
-          letterSpacing={0.3}
         />
       </Group>
 
@@ -219,8 +209,7 @@ export function BoundingBox({
         height={data.height}
         stroke={data.labelColor}
         strokeWidth={strokeWidth}
-        fill={isSelected ? `${data.labelColor}10` : "transparent"}
-        cornerRadius={1}
+        fill="transparent"
         draggable
         onClick={() => onSelect(data.id)}
         onTap={() => onSelect(data.id)}
