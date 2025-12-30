@@ -5,7 +5,7 @@ export async function getLabels(
   accessToken: string,
   projectId: string
 ): Promise<Label[]> {
-  return apiClient<Label[]>(`/projects/${projectId}/labels`, {
+  return apiClient<Label[]>(`/api/v1/projects/${projectId}/labels`, {
     accessToken,
   });
 }
@@ -15,7 +15,7 @@ export async function getLabel(
   projectId: string,
   labelId: string
 ): Promise<Label> {
-  return apiClient<Label>(`/projects/${projectId}/labels/${labelId}`, {
+  return apiClient<Label>(`/api/v1/projects/${projectId}/labels/${labelId}`, {
     accessToken,
   });
 }
