@@ -20,6 +20,17 @@ export interface AnnotationCreate {
   bbox_height: number;
 }
 
+export interface AnnotationBulkSaveItem {
+  label_id: string;
+  bbox_x: number;
+  bbox_y: number;
+  bbox_width: number;
+  bbox_height: number;
+  confidence?: number | null;
+  source?: "manual" | "auto" | "imported";
+  reviewed?: boolean;
+}
+
 // Canvas rendering (pixel coordinates)
 export interface BoundingBoxData {
   id: string;
