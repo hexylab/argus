@@ -14,3 +14,10 @@ export interface LabelCreate {
   description?: string | null;
   sort_order?: number;
 }
+
+export interface LabelUpdate {
+  name?: string;
+  color?: string;
+  description?: string | null;
+  sort_order?: number;
+}

@@ -2,6 +2,7 @@ import { apiClient } from "./client";
 import type {
   Project,
   ProjectCreate,
+  ProjectUpdate,
   ProjectListParams,
 } from "@/types/project";
 
@@ -41,5 +42,27 @@ export async function createProject(
     method: "POST",
     accessToken,
     body: JSON.stringify(data),
+  });
+}
+
+export async function updateProject(
+  accessToken: string,
+  projectId: string,
+  data: ProjectUpdate
+): Promise<Project> {
+  return apiClient<Project>(`/api/v1/projects/${projectId}`, {
+    method: "PATCH",
+    accessToken,
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteProject(
+  accessToken: string,
+  projectId: string
+): Promise<void> {
+  return apiClient<void>(`/api/v1/projects/${projectId}`, {
+    method: "DELETE",
+    accessToken,
   });
 }
