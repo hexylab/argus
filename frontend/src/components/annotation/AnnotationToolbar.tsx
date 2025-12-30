@@ -97,29 +97,6 @@ export function AnnotationToolbar({
         </svg>
         <span>{annotationCount} 件</span>
       </div>
-
-      {/* Mode hint */}
-      {mode === "draw" ? (
-        <>
-          <div className="w-px h-6 bg-border" />
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <span className="px-1.5 py-0.5 bg-muted rounded text-[10px] font-medium">
-              クリック
-            </span>
-            <span>開始点</span>
-            <span className="text-muted-foreground/50">→</span>
-            <span className="px-1.5 py-0.5 bg-muted rounded text-[10px] font-medium">
-              クリック
-            </span>
-            <span>確定</span>
-            <span className="text-muted-foreground/50">|</span>
-            <span className="px-1.5 py-0.5 bg-muted rounded text-[10px] font-medium">
-              Esc
-            </span>
-            <span>キャンセル</span>
-          </div>
-        </>
-      ) : null}
     </div>
   );
 }

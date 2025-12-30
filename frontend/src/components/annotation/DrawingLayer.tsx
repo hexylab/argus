@@ -19,8 +19,8 @@ const COLORS = {
   primary: "#06B6D4", // cyan-500 - precise, technical feel
   primaryLight: "rgba(6, 182, 212, 0.15)",
   accent: "#22D3EE", // cyan-400 - for highlights
-  startPoint: "#F59E0B", // amber-500 - distinct start marker
-  startPointGlow: "rgba(245, 158, 11, 0.3)",
+  crosshair: "#EF4444", // red-500 - high visibility crosshair
+  crosshairLight: "rgba(239, 68, 68, 0.3)",
 };
 
 export function DrawingLayer({
@@ -33,6 +33,9 @@ export function DrawingLayer({
     null
   );
   const [currentPos, setCurrentPos] = useState<{ x: number; y: number } | null>(
+    null
+  );
+  const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(
     null
   );
   const [dashOffset, setDashOffset] = useState(0);
@@ -83,6 +86,7 @@ export function DrawingLayer({
     if (!isActive) {
       setStartPoint(null);
       setCurrentPos(null);
+      setCursorPos(null);
     }
   }, [isActive]);
 
@@ -138,7 +142,7 @@ export function DrawingLayer({
 
   const handleMouseMove = useCallback(
     (e: KonvaEventObject<MouseEvent>) => {
-      if (!isActive || !startPoint) return;
+      if (!isActive) return;
 
       const stage = e.target.getStage();
       if (!stage) return;
@@ -147,7 +151,15 @@ export function DrawingLayer({
       if (!pos) return;
 
       // Clamp position to image bounds
-      setCurrentPos(clampToImage(pos.x, pos.y));
+      const clamped = clampToImage(pos.x, pos.y);
+
+      // Always update cursor position for crosshair guide
+      setCursorPos(clamped);
+
+      // Update current position if drawing
+      if (startPoint) {
+        setCurrentPos(clamped);
+      }
     },
     [isActive, startPoint, clampToImage]
   );
@@ -174,15 +186,37 @@ export function DrawingLayer({
         onMouseMove={handleMouseMove}
       />
 
+      {/* Cursor crosshair guide lines - full width/height */}
+      {cursorPos && !startPoint ? (
+        <>
+          {/* Vertical line */}
+          <Line
+            points={[cursorPos.x, 0, cursorPos.x, imageHeight]}
+            stroke={COLORS.crosshair}
+            strokeWidth={1}
+            opacity={0.6}
+            listening={false}
+          />
+          {/* Horizontal line */}
+          <Line
+            points={[0, cursorPos.y, imageWidth, cursorPos.y]}
+            stroke={COLORS.crosshair}
+            strokeWidth={1}
+            opacity={0.6}
+            listening={false}
+          />
+        </>
+      ) : null}
+
       {/* Start point marker - crosshair with glow */}
       {startPoint ? (
         <Group x={startPoint.x} y={startPoint.y}>
           {/* Outer glow */}
-          <Circle radius={12} fill={COLORS.startPointGlow} listening={false} />
+          <Circle radius={12} fill={COLORS.crosshairLight} listening={false} />
           {/* Center dot */}
           <Circle
             radius={4}
-            fill={COLORS.startPoint}
+            fill={COLORS.crosshair}
             stroke="#fff"
             strokeWidth={1}
             listening={false}
@@ -190,28 +224,28 @@ export function DrawingLayer({
           {/* Crosshair lines */}
           <Line
             points={[-16, 0, -6, 0]}
-            stroke={COLORS.startPoint}
+            stroke={COLORS.crosshair}
             strokeWidth={2}
             lineCap="round"
             listening={false}
           />
           <Line
             points={[6, 0, 16, 0]}
-            stroke={COLORS.startPoint}
+            stroke={COLORS.crosshair}
             strokeWidth={2}
             lineCap="round"
             listening={false}
           />
           <Line
             points={[0, -16, 0, -6]}
-            stroke={COLORS.startPoint}
+            stroke={COLORS.crosshair}
             strokeWidth={2}
             lineCap="round"
             listening={false}
           />
           <Line
             points={[0, 6, 0, 16]}
-            stroke={COLORS.startPoint}
+            stroke={COLORS.crosshair}
             strokeWidth={2}
             lineCap="round"
             listening={false}
