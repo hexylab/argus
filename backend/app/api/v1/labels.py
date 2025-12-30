@@ -14,7 +14,7 @@ from app.crud.label import get_labels as crud_get_labels
 from app.crud.label import update_label as crud_update_label
 from app.crud.project import ProjectNotFoundError
 from app.crud.project import get_project as crud_get_project
-from app.models.label import Label, LabelCreate, LabelUpdate
+from app.models.label import Label, LabelCreate, LabelCreateRequest, LabelUpdate
 
 router = APIRouter(prefix="/projects/{project_id}/labels", tags=["labels"])
 
@@ -33,7 +33,7 @@ def _verify_project_ownership(client: Client, project_id: UUID, owner_id: UUID) 
 @router.post("", response_model=Label, status_code=status.HTTP_201_CREATED)
 async def create_label(
     project_id: UUID,
-    data: LabelCreate,
+    data: LabelCreateRequest,
     auth: Auth,
 ) -> Label:
     """
@@ -46,7 +46,7 @@ async def create_label(
     # Verify project ownership
     _verify_project_ownership(auth.client, project_id, owner_id)
 
-    # Override project_id from path parameter
+    # Build LabelCreate with project_id from path parameter
     create_data = LabelCreate(
         project_id=project_id,
         name=data.name,

@@ -17,8 +17,14 @@ class LabelBase(BaseSchema):
     sort_order: int = 0
 
 
+class LabelCreateRequest(LabelBase):
+    """Schema for API request to create a label (project_id comes from path)."""
+
+    pass
+
+
 class LabelCreate(LabelBase):
-    """Schema for creating a label."""
+    """Schema for creating a label (used internally with CRUD)."""
 
     project_id: UUID
 
