@@ -25,6 +25,7 @@ const mockVideo: Video = {
   error_message: null,
   metadata: {},
   created_at: "2024-01-01T00:00:00Z",
+  thumbnail_url: null,
 };
 
 const mockUploadUrlResponse: UploadUrlResponse = {

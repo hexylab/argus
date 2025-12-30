@@ -76,3 +76,9 @@ class Video(VideoBase, SupabaseModel):
     """Video entity from database."""
 
     project_id: UUID
+
+
+class VideoResponse(Video):
+    """Video response with computed fields."""
+
+    thumbnail_url: str | None = None

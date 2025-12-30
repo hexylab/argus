@@ -23,6 +23,7 @@ export interface Video {
   error_message: string | null;
   metadata: VideoMetadata;
   created_at: string;
+  thumbnail_url: string | null;
 }
 
 export interface UploadUrlRequest {
