@@ -47,8 +47,22 @@ class AnnotationBase(BaseSchema):
     reviewed: bool = False
 
 
+class AnnotationCreateRequest(BaseSchema):
+    """Schema for annotation creation request (from API)."""
+
+    label_id: UUID
+    bbox_x: float = Field(..., ge=0, le=1)
+    bbox_y: float = Field(..., ge=0, le=1)
+    bbox_width: float = Field(..., ge=0, le=1)
+    bbox_height: float = Field(..., ge=0, le=1)
+    segmentation: list[list[float]] | None = None
+    confidence: float | None = Field(None, ge=0, le=1)
+    source: AnnotationSource = AnnotationSource.MANUAL
+    reviewed: bool = False
+
+
 class AnnotationCreate(AnnotationBase):
-    """Schema for creating an annotation."""
+    """Schema for creating an annotation (internal use)."""
 
     frame_id: UUID
     label_id: UUID
@@ -69,6 +83,12 @@ class AnnotationUpdate(BaseSchema):
     reviewed: bool | None = None
     reviewed_by: UUID | None = None
     reviewed_at: datetime | None = None
+
+
+class AnnotationBulkSaveRequest(BaseSchema):
+    """Schema for bulk saving annotations (replaces all for a frame)."""
+
+    annotations: list[AnnotationCreateRequest]
 
 
 class Annotation(AnnotationBase, SupabaseModel):
