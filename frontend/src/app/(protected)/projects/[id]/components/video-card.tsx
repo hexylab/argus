@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
+import Link from "next/link";
 import type { Video } from "@/types/video";
 import {
   Card,
@@ -162,125 +163,113 @@ export function VideoCard({ video, projectId, index = 0 }: VideoCardProps) {
   }
 
   return (
-    <Card
-      className={cn(
-        "group relative overflow-hidden transition-all duration-300",
-        "hover:shadow-lg hover:shadow-black/5 dark:hover:shadow-black/20",
-        "animate-in fade-in slide-in-from-bottom-2",
-        (isDeleting || isPending) && "opacity-50 pointer-events-none"
-      )}
-      style={{
-        animationDelay: `${index * 50}ms`,
-        animationFillMode: "backwards",
-      }}
-    >
-      <div
+    <Link href={`/projects/${projectId}/videos/${video.id}`}>
+      <Card
         className={cn(
-          "absolute inset-0 opacity-0 transition-opacity duration-300",
-          "bg-gradient-to-br from-foreground/[0.02] to-transparent",
-          "group-hover:opacity-100"
+          "group relative overflow-hidden transition-all duration-300",
+          "hover:shadow-lg hover:shadow-black/5 dark:hover:shadow-black/20",
+          "animate-in fade-in slide-in-from-bottom-2 cursor-pointer",
+          (isDeleting || isPending) && "opacity-50 pointer-events-none"
         )}
-      />
-
-      {/* Video Thumbnail Placeholder */}
-      <div className="relative aspect-video bg-muted/50 flex items-center justify-center border-b">
-        <div className="flex flex-col items-center gap-2 text-muted-foreground">
-          <svg
-            className="size-12 opacity-30"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={1}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z"
-            />
-          </svg>
-          {video.width !== null && video.height !== null ? (
-            <span className="text-xs">
-              {video.width} x {video.height}
-            </span>
-          ) : null}
-        </div>
-
-        {/* Status Badge */}
-        <div className="absolute top-2 right-2">
-          <span
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
-              "backdrop-blur-sm",
-              status.className
-            )}
-          >
-            {status.icon}
-            {status.label}
-          </span>
-        </div>
-
-        {/* Delete Button */}
+        style={{
+          animationDelay: `${index * 50}ms`,
+          animationFillMode: "backwards",
+        }}
+      >
         <div
           className={cn(
-            "absolute top-2 left-2 opacity-0 transition-opacity duration-200",
+            "absolute inset-0 opacity-0 transition-opacity duration-300",
+            "bg-gradient-to-br from-foreground/[0.02] to-transparent",
             "group-hover:opacity-100"
           )}
-        >
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-8 bg-background/80 backdrop-blur-sm hover:bg-destructive hover:text-destructive-foreground"
-            onClick={handleDelete}
-            disabled={isDeleting || isPending}
-          >
+        />
+
+        {/* Video Thumbnail Placeholder */}
+        <div className="relative aspect-video bg-muted/50 flex items-center justify-center border-b">
+          <div className="flex flex-col items-center gap-2 text-muted-foreground">
             <svg
-              className="size-4"
+              className="size-12 opacity-30"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
-              strokeWidth={2}
+              strokeWidth={1}
             >
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
+                d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z"
               />
             </svg>
-          </Button>
-        </div>
-      </div>
+            {video.width !== null && video.height !== null ? (
+              <span className="text-xs">
+                {video.width} x {video.height}
+              </span>
+            ) : null}
+          </div>
 
-      <CardHeader className="relative pb-2 pt-4">
-        <CardTitle className="line-clamp-1 text-sm font-medium tracking-tight">
-          {video.original_filename}
-        </CardTitle>
-        {video.error_message ? (
-          <CardDescription className="line-clamp-2 text-xs text-destructive">
-            {video.error_message}
-          </CardDescription>
-        ) : null}
-      </CardHeader>
+          {/* Status Badge */}
+          <div className="absolute top-2 right-2">
+            <span
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
+                "backdrop-blur-sm",
+                status.className
+              )}
+            >
+              {status.icon}
+              {status.label}
+            </span>
+          </div>
 
-      <CardContent className="relative pt-0">
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1">
+          {/* Delete Button */}
+          <div
+            className={cn(
+              "absolute top-2 left-2 opacity-0 transition-opacity duration-200",
+              "group-hover:opacity-100"
+            )}
+          >
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8 bg-background/80 backdrop-blur-sm hover:bg-destructive hover:text-destructive-foreground"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleDelete();
+              }}
+              disabled={isDeleting || isPending}
+            >
               <svg
-                className="size-3.5 opacity-50"
+                className="size-4"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
-                strokeWidth={1.5}
+                strokeWidth={2}
               >
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"
+                  d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
                 />
               </svg>
-              {formatFileSize(video.file_size)}
-            </span>
-            {video.duration_seconds !== null && (
+            </Button>
+          </div>
+        </div>
+
+        <CardHeader className="relative pb-2 pt-4">
+          <CardTitle className="line-clamp-1 text-sm font-medium tracking-tight">
+            {video.original_filename}
+          </CardTitle>
+          {video.error_message ? (
+            <CardDescription className="line-clamp-2 text-xs text-destructive">
+              {video.error_message}
+            </CardDescription>
+          ) : null}
+        </CardHeader>
+
+        <CardContent className="relative pt-0">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <div className="flex items-center gap-3">
               <span className="flex items-center gap-1">
                 <svg
                   className="size-3.5 opacity-50"
@@ -292,16 +281,34 @@ export function VideoCard({ video, projectId, index = 0 }: VideoCardProps) {
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"
+                    d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"
                   />
                 </svg>
-                {formatDuration(video.duration_seconds)}
+                {formatFileSize(video.file_size)}
               </span>
-            )}
+              {video.duration_seconds !== null && (
+                <span className="flex items-center gap-1">
+                  <svg
+                    className="size-3.5 opacity-50"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={1.5}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                  {formatDuration(video.duration_seconds)}
+                </span>
+              )}
+            </div>
+            <span>{formattedDate}</span>
           </div>
-          <span>{formattedDate}</span>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </Link>
   );
 }

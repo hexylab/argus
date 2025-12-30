@@ -128,6 +128,8 @@ def generate_presigned_download_url(
     """
     Generate a presigned URL for downloading a file from S3.
 
+    Uses the public endpoint for URLs that will be accessed from browser.
+
     Args:
         s3_key: The S3 object key.
         expires_in: URL expiration time in seconds.
@@ -136,7 +138,7 @@ def generate_presigned_download_url(
         Presigned URL for GET download.
     """
     settings = get_settings()
-    client = get_storage_client()
+    client = get_public_storage_client()
 
     url: str = client.generate_presigned_url(
         "get_object",
