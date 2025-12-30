@@ -288,3 +288,179 @@ class TestExportCOCO:
 
         response = client_other_user.get(f"/api/v1/projects/{project_id}/export/coco")
         assert response.status_code == 404
+
+
+class TestExportYOLO:
+    """Tests for YOLO export endpoint."""
+
+    def test_export_yolo_requires_auth(self, client_no_auth: TestClient) -> None:
+        """Test that YOLO export requires authentication."""
+        project_id = uuid4()
+        response = client_no_auth.get(f"/api/v1/projects/{project_id}/export/yolo")
+        assert response.status_code == 401
+
+    def test_export_yolo_project_not_found(
+        self,
+        client: TestClient,
+        mock_supabase: MagicMock,
+    ) -> None:
+        """Test exporting from nonexistent project."""
+        project_id = uuid4()
+
+        mock_result = MagicMock()
+        mock_result.data = []
+        mock_supabase.table.return_value.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_result
+
+        response = client.get(f"/api/v1/projects/{project_id}/export/yolo")
+        assert response.status_code == 404
+
+    def test_export_yolo_empty_project(
+        self,
+        client: TestClient,
+        mock_supabase: MagicMock,
+    ) -> None:
+        """Test exporting from project with no data."""
+        project_id = uuid4()
+        now = datetime.now(tz=UTC).isoformat()
+
+        def table_side_effect(table_name: str) -> MagicMock:
+            table_mock = MagicMock()
+
+            if table_name == "projects":
+                mock_result = MagicMock()
+                mock_result.data = [_mock_project(str(project_id), now)]
+                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_result
+            else:
+                # Empty results for videos, frames, labels, annotations
+                mock_result = MagicMock()
+                mock_result.data = []
+                table_mock.select.return_value.eq.return_value.order.return_value.range.return_value.execute.return_value = mock_result
+                table_mock.select.return_value.eq.return_value.order.return_value.order.return_value.range.return_value.execute.return_value = mock_result
+
+            return table_mock
+
+        mock_supabase.table.side_effect = table_side_effect
+
+        response = client.get(f"/api/v1/projects/{project_id}/export/yolo")
+        assert response.status_code == 200
+
+        data = response.json()
+        assert "data_yaml" in data
+        assert "annotations" in data
+        assert data["data_yaml"] == "names:\nnc: 0\n"
+        assert data["annotations"] == {}
+
+    def test_export_yolo_with_data(
+        self,
+        client: TestClient,
+        mock_supabase: MagicMock,
+    ) -> None:
+        """Test exporting from project with data."""
+        project_id = uuid4()
+        video_id = uuid4()
+        frame_id = uuid4()
+        label_id = uuid4()
+        annotation_id = uuid4()
+        now = datetime.now(tz=UTC).isoformat()
+
+        call_count: dict[str, int] = {
+            "videos": 0,
+            "frames": 0,
+            "labels": 0,
+            "annotations": 0,
+        }
+
+        def table_side_effect(table_name: str) -> MagicMock:
+            table_mock = MagicMock()
+
+            if table_name == "projects":
+                mock_result = MagicMock()
+                mock_result.data = [_mock_project(str(project_id), now)]
+                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_result
+
+            elif table_name == "videos":
+                mock_result = MagicMock()
+                if call_count["videos"] == 0:
+                    mock_result.data = [
+                        _mock_video(str(video_id), str(project_id), now)
+                    ]
+                    call_count["videos"] += 1
+                else:
+                    mock_result.data = []
+                table_mock.select.return_value.eq.return_value.order.return_value.range.return_value.execute.return_value = mock_result
+
+            elif table_name == "frames":
+                mock_result = MagicMock()
+                if call_count["frames"] == 0:
+                    mock_result.data = [_mock_frame(str(frame_id), str(video_id), now)]
+                    call_count["frames"] += 1
+                else:
+                    mock_result.data = []
+                table_mock.select.return_value.eq.return_value.order.return_value.range.return_value.execute.return_value = mock_result
+
+            elif table_name == "labels":
+                mock_result = MagicMock()
+                if call_count["labels"] == 0:
+                    mock_result.data = [
+                        _mock_label(str(label_id), str(project_id), now)
+                    ]
+                    call_count["labels"] += 1
+                else:
+                    mock_result.data = []
+                table_mock.select.return_value.eq.return_value.order.return_value.order.return_value.range.return_value.execute.return_value = mock_result
+
+            elif table_name == "annotations":
+                mock_result = MagicMock()
+                if call_count["annotations"] == 0:
+                    mock_result.data = [
+                        _mock_annotation(
+                            str(annotation_id), str(frame_id), str(label_id), now
+                        )
+                    ]
+                    call_count["annotations"] += 1
+                else:
+                    mock_result.data = []
+                table_mock.select.return_value.eq.return_value.order.return_value.range.return_value.execute.return_value = mock_result
+
+            return table_mock
+
+        mock_supabase.table.side_effect = table_side_effect
+
+        response = client.get(f"/api/v1/projects/{project_id}/export/yolo")
+        assert response.status_code == 200
+
+        data = response.json()
+
+        # Verify data.yaml
+        assert "names:" in data["data_yaml"]
+        assert "0: Test Label" in data["data_yaml"]
+        assert "nc: 1" in data["data_yaml"]
+
+        # Verify annotations
+        assert len(data["annotations"]) == 1
+        assert "0000.txt" in data["annotations"]
+
+        # Verify annotation content
+        # bbox: x=0.1, y=0.2, w=0.3, h=0.4 -> center: 0.25, 0.4
+        ann = data["annotations"]["0000.txt"]
+        parts = ann.strip().split()
+        assert parts[0] == "0"  # class_id
+        assert float(parts[1]) == 0.25  # center_x
+        assert float(parts[2]) == 0.4  # center_y
+        assert float(parts[3]) == 0.3  # width
+        assert float(parts[4]) == 0.4  # height
+
+    def test_export_yolo_other_user_project(
+        self,
+        client_other_user: TestClient,
+        mock_supabase: MagicMock,
+    ) -> None:
+        """Test that user cannot export from other user's project."""
+        project_id = uuid4()
+
+        mock_result = MagicMock()
+        mock_result.data = []
+        mock_supabase.table.return_value.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_result
+
+        response = client_other_user.get(f"/api/v1/projects/{project_id}/export/yolo")
+        assert response.status_code == 404
