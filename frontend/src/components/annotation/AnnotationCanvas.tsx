@@ -22,6 +22,9 @@ interface AnnotationCanvasProps {
   initialWidth?: number;
   initialHeight?: number;
   labels: Label[];
+  initialAnnotations?: BoundingBoxData[];
+  onChange?: (annotations: BoundingBoxData[]) => void;
+  selectedLabelId?: string | null;
 }
 
 const MIN_SCALE = 0.1;
@@ -33,6 +36,9 @@ export function AnnotationCanvas({
   initialWidth,
   initialHeight,
   labels,
+  initialAnnotations = [],
+  onChange,
+  selectedLabelId,
 }: AnnotationCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<StageType>(null);
@@ -55,7 +61,12 @@ export function AnnotationCanvas({
     redo,
     canUndo,
     canRedo,
-  } = useAnnotationHistory([]);
+  } = useAnnotationHistory(initialAnnotations);
+
+  // Notify parent of annotation changes
+  useEffect(() => {
+    onChange?.(annotations);
+  }, [annotations, onChange]);
 
   const [mode, setMode] = useState<AnnotationMode>("select");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -266,10 +277,33 @@ export function AnnotationCanvas({
   }, [stageSize, imageSize]);
 
   // Handle drawing complete
-  const handleDrawEnd = useCallback((rect: DrawingRect) => {
-    setPendingRect(rect);
-    setShowLabelDialog(true);
-  }, []);
+  const handleDrawEnd = useCallback(
+    (rect: DrawingRect) => {
+      // If a label is pre-selected from sidebar, use it directly
+      if (selectedLabelId) {
+        const label = labels.find((l) => l.id === selectedLabelId);
+        if (label) {
+          pushHistory();
+          const newAnnotation: BoundingBoxData = {
+            id: `temp-${Date.now()}`,
+            x: rect.x,
+            y: rect.y,
+            width: rect.width,
+            height: rect.height,
+            labelId: label.id,
+            labelName: label.name,
+            labelColor: label.color,
+          };
+          setAnnotations((prev) => [...prev, newAnnotation]);
+          return;
+        }
+      }
+      // Otherwise, show label selection dialog
+      setPendingRect(rect);
+      setShowLabelDialog(true);
+    },
+    [selectedLabelId, labels, pushHistory, setAnnotations]
+  );
 
   // Handle label selection
   const handleLabelSelect = useCallback(

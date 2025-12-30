@@ -1,10 +1,13 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { getFrame } from "@/lib/api/frames";
+import { getFrame, getFrames } from "@/lib/api/frames";
 import { getLabels } from "@/lib/api/labels";
-import type { FrameDetail } from "@/types/frame";
+import { getAnnotations, bulkSaveAnnotations } from "@/lib/api/annotations";
+import type { Frame, FrameDetail } from "@/types/frame";
 import type { Label } from "@/types/label";
+import type { Annotation, AnnotationBulkSaveItem } from "@/types/annotation";
 
 async function getAccessToken(): Promise<string | null> {
   const supabase = await createClient();
@@ -56,5 +59,92 @@ export async function fetchLabels(projectId: string): Promise<{
     // Log error but return empty labels to not break the page
     console.error("Failed to fetch labels:", error);
     return { labels: [] };
+  }
+}
+
+export async function fetchAllFrames(
+  projectId: string,
+  videoId: string
+): Promise<{
+  frames?: Frame[];
+  error?: string;
+}> {
+  try {
+    const accessToken = await getAccessToken();
+
+    if (!accessToken) {
+      return { error: "認証が必要です" };
+    }
+
+    const frames = await getFrames(accessToken, projectId, videoId, {
+      limit: 1000,
+    });
+    return { frames };
+  } catch (error) {
+    console.error("Failed to fetch frames:", error);
+    return { error: "フレーム一覧の取得に失敗しました" };
+  }
+}
+
+export async function fetchAnnotations(
+  projectId: string,
+  videoId: string,
+  frameId: string
+): Promise<{
+  annotations?: Annotation[];
+  error?: string;
+}> {
+  try {
+    const accessToken = await getAccessToken();
+
+    if (!accessToken) {
+      return { error: "認証が必要です" };
+    }
+
+    const annotations = await getAnnotations(
+      accessToken,
+      projectId,
+      videoId,
+      frameId
+    );
+    return { annotations };
+  } catch (error) {
+    console.error("Failed to fetch annotations:", error);
+    return { error: "アノテーションの取得に失敗しました" };
+  }
+}
+
+export async function saveAnnotationsAction(
+  projectId: string,
+  videoId: string,
+  frameId: string,
+  annotations: AnnotationBulkSaveItem[]
+): Promise<{
+  annotations?: Annotation[];
+  error?: string;
+}> {
+  try {
+    const accessToken = await getAccessToken();
+
+    if (!accessToken) {
+      return { error: "認証が必要です" };
+    }
+
+    const saved = await bulkSaveAnnotations(
+      accessToken,
+      projectId,
+      videoId,
+      frameId,
+      annotations
+    );
+
+    revalidatePath(
+      `/projects/${projectId}/videos/${videoId}/frames/${frameId}`
+    );
+
+    return { annotations: saved };
+  } catch (error) {
+    console.error("Failed to save annotations:", error);
+    return { error: "アノテーションの保存に失敗しました" };
   }
 }
