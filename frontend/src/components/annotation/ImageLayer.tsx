@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { Image as KonvaImage } from "react-konva";
 import useImage from "use-image";
 
@@ -10,17 +11,22 @@ interface ImageLayerProps {
 
 export function ImageLayer({ imageUrl, onLoad }: ImageLayerProps) {
   const [image, status] = useImage(imageUrl, "anonymous");
+  const hasNotifiedRef = useRef(false);
 
-  // Notify parent when image loads
-  if (status === "loaded" && image && onLoad) {
-    onLoad(image.width, image.height);
-  }
+  // Notify parent when image loads (only once)
+  useEffect(() => {
+    if (status === "loaded" && image && onLoad && !hasNotifiedRef.current) {
+      hasNotifiedRef.current = true;
+      onLoad(image.width, image.height);
+    }
+  }, [status, image, onLoad]);
 
-  if (status === "loading") {
-    return null;
-  }
+  // Reset notification flag when URL changes
+  useEffect(() => {
+    hasNotifiedRef.current = false;
+  }, [imageUrl]);
 
-  if (status === "failed") {
+  if (status === "loading" || status === "failed") {
     return null;
   }
 
