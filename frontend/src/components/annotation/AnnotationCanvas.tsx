@@ -4,11 +4,22 @@ import { useRef, useState, useCallback, useEffect } from "react";
 import { Stage, Layer } from "react-konva";
 import type { Stage as StageType } from "konva/lib/Stage";
 import { ImageLayer } from "./ImageLayer";
+import { BoundingBox } from "./BoundingBox";
+import { DrawingLayer } from "./DrawingLayer";
+import { AnnotationToolbar } from "./AnnotationToolbar";
+import { LabelSelectDialog } from "./LabelSelectDialog";
+import type { Label } from "@/types/label";
+import type {
+  AnnotationMode,
+  BoundingBoxData,
+  DrawingRect,
+} from "@/types/annotation";
 
 interface AnnotationCanvasProps {
   imageUrl: string;
   initialWidth?: number;
   initialHeight?: number;
+  labels: Label[];
 }
 
 const MIN_SCALE = 0.1;
@@ -19,6 +30,7 @@ export function AnnotationCanvas({
   imageUrl,
   initialWidth,
   initialHeight,
+  labels,
 }: AnnotationCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<StageType>(null);
@@ -31,6 +43,13 @@ export function AnnotationCanvas({
     height: initialHeight ?? 0,
   });
   const [isLoading, setIsLoading] = useState(true);
+
+  // Annotation state
+  const [mode, setMode] = useState<AnnotationMode>("pan");
+  const [annotations, setAnnotations] = useState<BoundingBoxData[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [pendingRect, setPendingRect] = useState<DrawingRect | null>(null);
+  const [showLabelDialog, setShowLabelDialog] = useState(false);
 
   // Update stage size on container resize
   useEffect(() => {
@@ -45,6 +64,40 @@ export function AnnotationCanvas({
     window.addEventListener("resize", updateSize);
     return () => window.removeEventListener("resize", updateSize);
   }, []);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if in input field
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement
+      ) {
+        return;
+      }
+
+      switch (e.key.toLowerCase()) {
+        case "d":
+          setMode("draw");
+          break;
+        case " ":
+        case "escape":
+          setMode("pan");
+          setSelectedId(null);
+          break;
+        case "delete":
+        case "backspace":
+          if (selectedId) {
+            setAnnotations((prev) => prev.filter((a) => a.id !== selectedId));
+            setSelectedId(null);
+          }
+          break;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedId]);
 
   // Fit image to canvas when image loads
   const handleImageLoad = useCallback(
@@ -143,6 +196,62 @@ export function AnnotationCanvas({
     setPosition({ x: centerX, y: centerY });
   }, [stageSize, imageSize]);
 
+  // Handle drawing complete
+  const handleDrawEnd = useCallback((rect: DrawingRect) => {
+    setPendingRect(rect);
+    setShowLabelDialog(true);
+  }, []);
+
+  // Handle label selection
+  const handleLabelSelect = useCallback(
+    (labelId: string) => {
+      if (!pendingRect) return;
+
+      const label = labels.find((l) => l.id === labelId);
+      if (!label) return;
+
+      const newAnnotation: BoundingBoxData = {
+        id: `temp-${Date.now()}`,
+        x: pendingRect.x,
+        y: pendingRect.y,
+        width: pendingRect.width,
+        height: pendingRect.height,
+        labelId: label.id,
+        labelName: label.name,
+        labelColor: label.color,
+      };
+
+      setAnnotations((prev) => [...prev, newAnnotation]);
+      setPendingRect(null);
+      setShowLabelDialog(false);
+    },
+    [pendingRect, labels]
+  );
+
+  // Handle label dialog cancel
+  const handleLabelCancel = useCallback(() => {
+    setPendingRect(null);
+    setShowLabelDialog(false);
+  }, []);
+
+  // Handle bbox selection
+  const handleBboxSelect = useCallback((id: string) => {
+    setSelectedId(id);
+    setMode("pan"); // Switch to pan mode when selecting
+  }, []);
+
+  // Handle stage click (deselect)
+  const handleStageClick = useCallback(
+    (e: { target: { getStage: () => StageType | null } }) => {
+      // Only deselect if clicking on stage background
+      const stage = e.target.getStage();
+      if (e.target === stage) {
+        setSelectedId(null);
+      }
+    },
+    []
+  );
+
   return (
     <div className="relative h-full w-full" ref={containerRef}>
       {/* Loading overlay */}
@@ -184,15 +293,50 @@ export function AnnotationCanvas({
         scaleY={scale}
         x={position.x}
         y={position.y}
-        draggable
+        draggable={mode === "pan"}
         onWheel={handleWheel}
         onDragEnd={handleDragEnd}
-        style={{ backgroundColor: "hsl(var(--muted))" }}
+        onClick={handleStageClick}
+        onTap={handleStageClick}
+        style={{
+          backgroundColor: "hsl(var(--muted))",
+          cursor: mode === "draw" ? "crosshair" : "grab",
+        }}
       >
+        {/* Image layer */}
         <Layer>
           <ImageLayer imageUrl={imageUrl} onLoad={handleImageLoad} />
         </Layer>
+
+        {/* Annotations layer */}
+        <Layer>
+          {annotations.map((annotation) => (
+            <BoundingBox
+              key={annotation.id}
+              data={annotation}
+              isSelected={annotation.id === selectedId}
+              onSelect={handleBboxSelect}
+            />
+          ))}
+        </Layer>
+
+        {/* Drawing layer */}
+        <DrawingLayer
+          imageWidth={imageSize.width}
+          imageHeight={imageSize.height}
+          isActive={mode === "draw"}
+          onDrawEnd={handleDrawEnd}
+        />
       </Stage>
+
+      {/* Toolbar */}
+      <div className="absolute top-4 left-4 bg-background/80 backdrop-blur-sm rounded-lg border px-3 py-2 shadow-sm">
+        <AnnotationToolbar
+          mode={mode}
+          onModeChange={setMode}
+          annotationCount={annotations.length}
+        />
+      </div>
 
       {/* Controls */}
       <div className="absolute bottom-4 right-4 flex items-center gap-2 bg-background/80 backdrop-blur-sm rounded-lg border px-3 py-2 shadow-sm">
@@ -263,13 +407,21 @@ export function AnnotationCanvas({
       </div>
 
       {/* Image info */}
-      {!isLoading && imageSize.width > 0 && (
-        <div className="absolute top-4 left-4 bg-background/80 backdrop-blur-sm rounded-lg border px-3 py-2 shadow-sm">
+      {!isLoading && imageSize.width > 0 ? (
+        <div className="absolute bottom-4 left-4 bg-background/80 backdrop-blur-sm rounded-lg border px-3 py-2 shadow-sm">
           <span className="text-xs text-muted-foreground">
             {imageSize.width} x {imageSize.height}
           </span>
         </div>
-      )}
+      ) : null}
+
+      {/* Label selection dialog */}
+      <LabelSelectDialog
+        open={showLabelDialog}
+        labels={labels}
+        onSelect={handleLabelSelect}
+        onCancel={handleLabelCancel}
+      />
     </div>
   );
 }

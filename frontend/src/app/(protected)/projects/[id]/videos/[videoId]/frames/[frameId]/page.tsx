@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { fetchFrame } from "./actions";
+import { fetchFrame, fetchLabels } from "./actions";
 import { fetchVideo } from "../../actions";
 import { fetchProject } from "../../../../actions";
 import { AnnotationClient } from "./annotation-client";
@@ -27,11 +27,13 @@ export default async function AnnotationPage({ params }: AnnotationPageProps) {
     redirect("/login");
   }
 
-  const [projectResult, videoResult, frameResult] = await Promise.all([
-    fetchProject(projectId),
-    fetchVideo(projectId, videoId),
-    fetchFrame(projectId, videoId, frameId),
-  ]);
+  const [projectResult, videoResult, frameResult, labelsResult] =
+    await Promise.all([
+      fetchProject(projectId),
+      fetchVideo(projectId, videoId),
+      fetchFrame(projectId, videoId, frameId),
+      fetchLabels(projectId),
+    ]);
 
   if (projectResult.error || !projectResult.project) {
     notFound();
@@ -48,6 +50,7 @@ export default async function AnnotationPage({ params }: AnnotationPageProps) {
   const project = projectResult.project;
   const video = videoResult.video;
   const frame = frameResult.frame;
+  const labels = labelsResult.labels ?? [];
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)]">
@@ -140,7 +143,7 @@ export default async function AnnotationPage({ params }: AnnotationPageProps) {
 
       {/* Canvas Area */}
       <div className="flex-1 min-h-0">
-        <AnnotationClient frame={frame} />
+        <AnnotationClient frame={frame} labels={labels} />
       </div>
     </div>
   );
