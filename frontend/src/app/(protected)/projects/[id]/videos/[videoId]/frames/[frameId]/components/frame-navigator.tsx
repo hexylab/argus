@@ -54,10 +54,16 @@ export function FrameNavigator({
         return;
       }
 
-      if (e.key === "ArrowLeft") {
+      // Don't trigger when Ctrl/Cmd/Alt is pressed (for other shortcuts)
+      if (e.ctrlKey || e.metaKey || e.altKey) {
+        return;
+      }
+
+      const key = e.key.toLowerCase();
+      if (key === "d") {
         e.preventDefault();
         goToPrevious();
-      } else if (e.key === "ArrowRight") {
+      } else if (key === "f") {
         e.preventDefault();
         goToNext();
       }

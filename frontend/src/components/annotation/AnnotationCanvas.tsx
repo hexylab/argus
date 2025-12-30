@@ -126,11 +126,17 @@ export function AnnotationCanvas({
         return;
       }
 
+      // Tab key to toggle mode
+      if (e.key === "Tab") {
+        e.preventDefault();
+        setMode((current) => (current === "select" ? "draw" : "select"));
+        return;
+      }
+
       switch (e.key.toLowerCase()) {
         case "v":
           setMode("select");
           break;
-        case "d":
         case "r":
           setMode("draw");
           break;
