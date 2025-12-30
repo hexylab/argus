@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import Image from "next/image";
 import type { Frame } from "@/types/frame";
 import {
@@ -14,6 +15,8 @@ import { cn } from "@/lib/utils";
 
 interface FrameGridProps {
   frames: Frame[];
+  projectId: string;
+  videoId: string;
   isLoading?: boolean;
 }
 
@@ -26,15 +29,28 @@ function formatTimestamp(ms: number): string {
   return `${mins}:${secs.toString().padStart(2, "0")}.${Math.floor(millis / 100)}`;
 }
 
-function FrameThumbnail({ frame, index }: { frame: Frame; index: number }) {
+interface FrameThumbnailProps {
+  frame: Frame;
+  projectId: string;
+  videoId: string;
+  index: number;
+}
+
+function FrameThumbnail({
+  frame,
+  projectId,
+  videoId,
+  index,
+}: FrameThumbnailProps) {
   const [imageError, setImageError] = useState(false);
 
   return (
-    <div
+    <Link
+      href={`/projects/${projectId}/videos/${videoId}/frames/${frame.id}`}
       className={cn(
-        "group relative overflow-hidden rounded-lg border bg-muted/30",
+        "group relative overflow-hidden rounded-lg border bg-muted/30 block",
         "transition-all duration-200 hover:shadow-md hover:border-foreground/20",
-        "animate-in fade-in slide-in-from-bottom-2"
+        "animate-in fade-in slide-in-from-bottom-2 cursor-pointer"
       )}
       style={{
         animationDelay: `${Math.min(index * 30, 300)}ms`,
@@ -74,12 +90,23 @@ function FrameThumbnail({ frame, index }: { frame: Frame; index: number }) {
         <div
           className={cn(
             "absolute inset-0 bg-black/60 opacity-0 transition-opacity duration-200",
-            "group-hover:opacity-100 flex items-center justify-center"
+            "group-hover:opacity-100 flex items-center justify-center gap-2"
           )}
         >
-          <span className="text-white text-sm font-medium">
-            #{frame.frame_number}
-          </span>
+          <svg
+            className="size-5 text-white"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={1.5}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10"
+            />
+          </svg>
+          <span className="text-white text-sm font-medium">アノテーション</span>
         </div>
       </div>
 
@@ -92,7 +119,7 @@ function FrameThumbnail({ frame, index }: { frame: Frame; index: number }) {
           {formatTimestamp(frame.timestamp_ms)}
         </p>
       </div>
-    </div>
+    </Link>
   );
 }
 
@@ -139,7 +166,12 @@ function EmptyState() {
   );
 }
 
-export function FrameGrid({ frames, isLoading = false }: FrameGridProps) {
+export function FrameGrid({
+  frames,
+  projectId,
+  videoId,
+  isLoading = false,
+}: FrameGridProps) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -166,7 +198,9 @@ export function FrameGrid({ frames, isLoading = false }: FrameGridProps) {
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="text-lg">抽出フレーム</CardTitle>
-            <CardDescription>映像から抽出されたフレーム一覧</CardDescription>
+            <CardDescription>
+              フレームをクリックしてアノテーションを開始
+            </CardDescription>
           </div>
           {frames.length > 0 && (
             <span className="text-sm text-muted-foreground">
@@ -181,7 +215,13 @@ export function FrameGrid({ frames, isLoading = false }: FrameGridProps) {
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
             {frames.map((frame, index) => (
-              <FrameThumbnail key={frame.id} frame={frame} index={index} />
+              <FrameThumbnail
+                key={frame.id}
+                frame={frame}
+                projectId={projectId}
+                videoId={videoId}
+                index={index}
+              />
             ))}
           </div>
         )}
