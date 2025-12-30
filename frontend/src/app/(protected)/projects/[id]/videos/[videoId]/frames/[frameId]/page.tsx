@@ -2,7 +2,12 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { fetchFrame, fetchLabels } from "./actions";
+import {
+  fetchFrame,
+  fetchLabels,
+  fetchAllFrames,
+  fetchAnnotations,
+} from "./actions";
 import { fetchVideo } from "../../actions";
 import { fetchProject } from "../../../../actions";
 import { AnnotationClient } from "./annotation-client";
@@ -27,15 +32,18 @@ export default async function AnnotationPage({ params }: AnnotationPageProps) {
     redirect("/login");
   }
 
-  // Fetch project, video, and frame in parallel (required)
-  const [projectResult, videoResult, frameResult] = await Promise.all([
-    fetchProject(projectId),
-    fetchVideo(projectId, videoId),
-    fetchFrame(projectId, videoId, frameId),
-  ]);
+  // Fetch all required data in parallel
+  const [projectResult, videoResult, frameResult, framesResult, labelsResult] =
+    await Promise.all([
+      fetchProject(projectId),
+      fetchVideo(projectId, videoId),
+      fetchFrame(projectId, videoId, frameId),
+      fetchAllFrames(projectId, videoId),
+      fetchLabels(projectId),
+    ]);
 
-  // Fetch labels separately (optional - don't fail page if labels can't be fetched)
-  const labelsResult = await fetchLabels(projectId);
+  // Fetch annotations separately (depends on frame existing)
+  const annotationsResult = await fetchAnnotations(projectId, videoId, frameId);
 
   if (projectResult.error || !projectResult.project) {
     notFound();
@@ -52,7 +60,9 @@ export default async function AnnotationPage({ params }: AnnotationPageProps) {
   const project = projectResult.project;
   const video = videoResult.video;
   const frame = frameResult.frame;
+  const frames = framesResult.frames ?? [];
   const labels = labelsResult.labels ?? [];
+  const annotations = annotationsResult.annotations ?? [];
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)]">
@@ -145,7 +155,14 @@ export default async function AnnotationPage({ params }: AnnotationPageProps) {
 
       {/* Canvas Area */}
       <div className="flex-1 min-h-0">
-        <AnnotationClient frame={frame} labels={labels} />
+        <AnnotationClient
+          frame={frame}
+          frames={frames}
+          labels={labels}
+          initialAnnotations={annotations}
+          projectId={projectId}
+          videoId={videoId}
+        />
       </div>
     </div>
   );
