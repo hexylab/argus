@@ -50,6 +50,7 @@ function FrameThumbnail({ frame, index }: { frame: Frame; index: number }) {
             className="object-cover"
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
             onError={() => setImageError(true)}
+            unoptimized
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
