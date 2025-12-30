@@ -21,6 +21,16 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+
+  // Turbopack configuration for react-konva
+  // canvas module is not available in SSR, so we alias it to an empty module
+  experimental: {
+    turbo: {
+      resolveAlias: {
+        canvas: "./empty.js",
+      },
+    },
+  },
 };
 
 export default nextConfig;

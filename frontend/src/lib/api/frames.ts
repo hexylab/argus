@@ -1,5 +1,5 @@
 import { apiClient } from "./client";
-import type { Frame, FrameListParams } from "@/types/frame";
+import type { Frame, FrameDetail, FrameListParams } from "@/types/frame";
 
 export async function getFrames(
   accessToken: string,
@@ -16,6 +16,20 @@ export async function getFrames(
   const endpoint = `/api/v1/projects/${projectId}/videos/${videoId}/frames${query ? `?${query}` : ""}`;
 
   return apiClient<Frame[]>(endpoint, {
+    method: "GET",
+    accessToken,
+  });
+}
+
+export async function getFrame(
+  accessToken: string,
+  projectId: string,
+  videoId: string,
+  frameId: string
+): Promise<FrameDetail> {
+  const endpoint = `/api/v1/projects/${projectId}/videos/${videoId}/frames/${frameId}`;
+
+  return apiClient<FrameDetail>(endpoint, {
     method: "GET",
     accessToken,
   });

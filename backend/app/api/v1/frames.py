@@ -8,6 +8,8 @@ from supabase import Client
 
 from app.api.deps import Auth
 from app.core.storage import generate_presigned_download_url
+from app.crud.frame import FrameNotFoundError
+from app.crud.frame import get_frame as crud_get_frame
 from app.crud.frame import get_frames as crud_get_frames
 from app.crud.project import ProjectNotFoundError
 from app.crud.project import get_project as crud_get_project
@@ -34,6 +36,12 @@ class FrameResponse(BaseModel):
     width: int | None = None
     height: int | None = None
     created_at: str
+
+
+class FrameDetailResponse(FrameResponse):
+    """Frame detail response with full image URL for annotation."""
+
+    image_url: str
 
 
 def _verify_project_ownership(client: Client, project_id: UUID, owner_id: UUID) -> None:
@@ -104,3 +112,55 @@ async def list_frames(
     frames = crud_get_frames(auth.client, video_id, skip=skip, limit=limit)
 
     return [_frame_to_response(frame) for frame in frames]
+
+
+@router.get("/{frame_id}", response_model=FrameDetailResponse)
+async def get_frame(
+    project_id: UUID,
+    video_id: UUID,
+    frame_id: UUID,
+    auth: Auth,
+) -> FrameDetailResponse:
+    """
+    Get a single frame with full image URL for annotation.
+
+    Returns the frame with presigned URLs for both thumbnail and full image.
+    The user must own the project.
+    """
+    owner_id = UUID(auth.user.sub)
+
+    # Verify project ownership
+    _verify_project_ownership(auth.client, project_id, owner_id)
+
+    # Verify video exists in project
+    _verify_video_exists(auth.client, video_id, project_id)
+
+    # Get the frame
+    try:
+        frame = crud_get_frame(auth.client, frame_id, video_id)
+    except FrameNotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Frame {frame_id} not found",
+        ) from e
+
+    # Generate presigned URLs
+    thumbnail_url = None
+    if frame.thumbnail_s3_key:
+        thumbnail_url = generate_presigned_download_url(frame.thumbnail_s3_key)
+
+    image_url = generate_presigned_download_url(frame.s3_key)
+
+    return FrameDetailResponse(
+        id=frame.id,
+        video_id=frame.video_id,
+        frame_number=frame.frame_number,
+        timestamp_ms=frame.timestamp_ms,
+        s3_key=frame.s3_key,
+        thumbnail_s3_key=frame.thumbnail_s3_key,
+        thumbnail_url=thumbnail_url,
+        image_url=image_url,
+        width=frame.width,
+        height=frame.height,
+        created_at=frame.created_at.isoformat(),
+    )

@@ -11,6 +11,10 @@ export interface Frame {
   created_at: string;
 }
 
+export interface FrameDetail extends Frame {
+  image_url: string;
+}
+
 export interface FrameListParams {
   skip?: number;
   limit?: number;
