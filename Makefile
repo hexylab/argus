@@ -1,4 +1,4 @@
-.PHONY: help setup up up-dev down down-dev down-all logs lint lint-docker test test-docker clean ps supabase-start supabase-stop supabase-status
+.PHONY: help setup up up-dev rebuild-dev down down-dev down-all logs lint lint-docker test test-docker clean ps supabase-start supabase-stop supabase-status
 
 # Load environment variables from docker/.env if exists
 -include docker/.env
@@ -21,9 +21,10 @@ help:
 	@echo "  supabase-status - Show Supabase status and credentials"
 	@echo ""
 	@echo "Docker:"
-	@echo "  up        - Start infrastructure (Redis, MinIO)"
-	@echo "  up-dev    - Start full dev environment (Supabase + infra + apps)"
-	@echo "  down      - Stop infrastructure"
+	@echo "  up          - Start infrastructure (Redis, MinIO)"
+	@echo "  up-dev      - Start full dev environment (Supabase + infra + apps)"
+	@echo "  rebuild-dev - Rebuild and restart dev environment"
+	@echo "  down        - Stop infrastructure"
 	@echo "  down-dev  - Stop full dev environment (Supabase + infra + apps)"
 	@echo "  down-all  - Stop all services and remove volumes"
 	@echo "  ps        - Show running containers"
@@ -88,6 +89,15 @@ up-dev:
 	@echo "  Supabase Studio: http://localhost:54333"
 	@echo "  Inbucket (Mail): http://localhost:54334"
 	@echo "  MinIO Console:  http://localhost:$(MINIO_CONSOLE_PORT)"
+
+# Rebuild and restart development environment
+rebuild-dev:
+	@echo "Rebuilding and restarting dev environment..."
+	docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml up -d --build
+	@echo ""
+	@echo "Development environment rebuilt and started:"
+	@echo "  Frontend:       http://localhost:$(FRONTEND_PORT)"
+	@echo "  Backend:        http://localhost:$(BACKEND_PORT)"
 
 # Stop infrastructure
 down:

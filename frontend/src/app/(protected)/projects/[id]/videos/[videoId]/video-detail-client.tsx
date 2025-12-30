@@ -58,7 +58,12 @@ export function VideoDetailClient({
 
       {/* Frame Grid - only show when ready or failed */}
       {(video.status === "ready" || video.status === "failed") && (
-        <FrameGrid frames={frames} isLoading={isLoadingFrames} />
+        <FrameGrid
+          frames={frames}
+          projectId={projectId}
+          videoId={video.id}
+          isLoading={isLoadingFrames}
+        />
       )}
     </div>
   );
