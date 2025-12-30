@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import type { Video } from "@/types/video";
 import {
   Card,
@@ -133,6 +134,7 @@ export function VideoCard({ video, projectId, index = 0 }: VideoCardProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [formattedDate, setFormattedDate] = useState<string>("");
+  const [imageError, setImageError] = useState(false);
 
   // Format date on client side only to avoid hydration mismatch
   useEffect(() => {
@@ -184,28 +186,42 @@ export function VideoCard({ video, projectId, index = 0 }: VideoCardProps) {
           )}
         />
 
-        {/* Video Thumbnail Placeholder */}
-        <div className="relative aspect-video bg-muted/50 flex items-center justify-center border-b">
-          <div className="flex flex-col items-center gap-2 text-muted-foreground">
-            <svg
-              className="size-12 opacity-30"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={1}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z"
-              />
-            </svg>
-            {video.width !== null && video.height !== null ? (
-              <span className="text-xs">
-                {video.width} x {video.height}
-              </span>
-            ) : null}
-          </div>
+        {/* Video Thumbnail */}
+        <div className="relative aspect-video bg-muted/50 border-b">
+          {video.thumbnail_url && !imageError ? (
+            <Image
+              src={video.thumbnail_url}
+              alt={video.original_filename}
+              fill
+              className="object-cover"
+              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+              onError={() => setImageError(true)}
+              unoptimized
+            />
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                <svg
+                  className="size-12 opacity-30"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={1}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z"
+                  />
+                </svg>
+                {video.width !== null && video.height !== null ? (
+                  <span className="text-xs">
+                    {video.width} x {video.height}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          )}
 
           {/* Status Badge */}
           <div className="absolute top-2 right-2">
