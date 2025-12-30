@@ -1,6 +1,7 @@
 """Tests for annotation API endpoints."""
 
 from datetime import UTC, datetime
+from typing import Any
 from unittest.mock import MagicMock
 from uuid import uuid4
 
@@ -9,7 +10,7 @@ from fastapi.testclient import TestClient
 from tests.conftest import TEST_USER_ID
 
 
-def _mock_project(project_id: str, now: str) -> dict:
+def _mock_project(project_id: str, now: str) -> dict[str, Any]:
     """Create a mock project result."""
     return {
         "id": project_id,
@@ -23,7 +24,7 @@ def _mock_project(project_id: str, now: str) -> dict:
     }
 
 
-def _mock_video(video_id: str, project_id: str, now: str) -> dict:
+def _mock_video(video_id: str, project_id: str, now: str) -> dict[str, Any]:
     """Create a mock video result."""
     return {
         "id": video_id,
@@ -46,7 +47,7 @@ def _mock_video(video_id: str, project_id: str, now: str) -> dict:
     }
 
 
-def _mock_frame(frame_id: str, video_id: str, now: str) -> dict:
+def _mock_frame(frame_id: str, video_id: str, now: str) -> dict[str, Any]:
     """Create a mock frame result."""
     return {
         "id": frame_id,
@@ -62,7 +63,7 @@ def _mock_frame(frame_id: str, video_id: str, now: str) -> dict:
     }
 
 
-def _mock_label(label_id: str, project_id: str, now: str) -> dict:
+def _mock_label(label_id: str, project_id: str, now: str) -> dict[str, Any]:
     """Create a mock label result."""
     return {
         "id": label_id,
@@ -77,7 +78,7 @@ def _mock_label(label_id: str, project_id: str, now: str) -> dict:
 
 def _mock_annotation(
     annotation_id: str, frame_id: str, label_id: str, now: str
-) -> dict:
+) -> dict[str, Any]:
     """Create a mock annotation result."""
     return {
         "id": annotation_id,
@@ -198,27 +199,19 @@ class TestCreateAnnotation:
             if table_name == "projects":
                 mock_result = MagicMock()
                 mock_result.data = [_mock_project(str(project_id), now)]
-                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = (
-                    mock_result
-                )
+                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_result
             elif table_name == "videos":
                 mock_result = MagicMock()
                 mock_result.data = [_mock_video(str(video_id), str(project_id), now)]
-                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = (
-                    mock_result
-                )
+                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_result
             elif table_name == "frames":
                 mock_result = MagicMock()
                 mock_result.data = [_mock_frame(str(frame_id), str(video_id), now)]
-                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = (
-                    mock_result
-                )
+                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_result
             elif table_name == "labels":
                 mock_result = MagicMock()
                 mock_result.data = [_mock_label(str(label_id), str(project_id), now)]
-                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = (
-                    mock_result
-                )
+                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_result
             elif table_name == "annotations":
                 mock_result = MagicMock()
                 mock_result.data = [
@@ -264,9 +257,7 @@ class TestCreateAnnotation:
 
         mock_result = MagicMock()
         mock_result.data = []
-        mock_supabase.table.return_value.select.return_value.eq.return_value.eq.return_value.execute.return_value = (
-            mock_result
-        )
+        mock_supabase.table.return_value.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_result
 
         response = client.post(
             f"/api/v1/projects/{project_id}/videos/{video_id}/frames/{frame_id}/annotations",
@@ -327,21 +318,15 @@ class TestListAnnotations:
             if table_name == "projects":
                 mock_result = MagicMock()
                 mock_result.data = [_mock_project(str(project_id), now)]
-                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = (
-                    mock_result
-                )
+                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_result
             elif table_name == "videos":
                 mock_result = MagicMock()
                 mock_result.data = [_mock_video(str(video_id), str(project_id), now)]
-                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = (
-                    mock_result
-                )
+                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_result
             elif table_name == "frames":
                 mock_result = MagicMock()
                 mock_result.data = [_mock_frame(str(frame_id), str(video_id), now)]
-                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = (
-                    mock_result
-                )
+                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_result
             elif table_name == "annotations":
                 mock_result = MagicMock()
                 mock_result.data = [
@@ -349,9 +334,7 @@ class TestListAnnotations:
                         str(annotation_id), str(frame_id), str(label_id), now
                     )
                 ]
-                table_mock.select.return_value.eq.return_value.order.return_value.range.return_value.execute.return_value = (
-                    mock_result
-                )
+                table_mock.select.return_value.eq.return_value.order.return_value.range.return_value.execute.return_value = mock_result
 
             return table_mock
 
@@ -383,27 +366,19 @@ class TestListAnnotations:
             if table_name == "projects":
                 mock_result = MagicMock()
                 mock_result.data = [_mock_project(str(project_id), now)]
-                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = (
-                    mock_result
-                )
+                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_result
             elif table_name == "videos":
                 mock_result = MagicMock()
                 mock_result.data = [_mock_video(str(video_id), str(project_id), now)]
-                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = (
-                    mock_result
-                )
+                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_result
             elif table_name == "frames":
                 mock_result = MagicMock()
                 mock_result.data = [_mock_frame(str(frame_id), str(video_id), now)]
-                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = (
-                    mock_result
-                )
+                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_result
             elif table_name == "annotations":
                 mock_result = MagicMock()
                 mock_result.data = []
-                table_mock.select.return_value.eq.return_value.order.return_value.range.return_value.execute.return_value = (
-                    mock_result
-                )
+                table_mock.select.return_value.eq.return_value.order.return_value.range.return_value.execute.return_value = mock_result
 
             return table_mock
 
@@ -440,21 +415,15 @@ class TestUpdateAnnotation:
             if table_name == "projects":
                 mock_result = MagicMock()
                 mock_result.data = [_mock_project(str(project_id), now)]
-                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = (
-                    mock_result
-                )
+                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_result
             elif table_name == "videos":
                 mock_result = MagicMock()
                 mock_result.data = [_mock_video(str(video_id), str(project_id), now)]
-                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = (
-                    mock_result
-                )
+                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_result
             elif table_name == "frames":
                 mock_result = MagicMock()
                 mock_result.data = [_mock_frame(str(frame_id), str(video_id), now)]
-                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = (
-                    mock_result
-                )
+                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_result
             elif table_name == "annotations":
                 updated_annotation = _mock_annotation(
                     str(annotation_id), str(frame_id), str(label_id), now
@@ -462,9 +431,7 @@ class TestUpdateAnnotation:
                 updated_annotation["bbox_x"] = 0.5
                 mock_result = MagicMock()
                 mock_result.data = [updated_annotation]
-                table_mock.update.return_value.eq.return_value.eq.return_value.execute.return_value = (
-                    mock_result
-                )
+                table_mock.update.return_value.eq.return_value.eq.return_value.execute.return_value = mock_result
 
             return table_mock
 
@@ -502,21 +469,15 @@ class TestDeleteAnnotation:
             if table_name == "projects":
                 mock_result = MagicMock()
                 mock_result.data = [_mock_project(str(project_id), now)]
-                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = (
-                    mock_result
-                )
+                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_result
             elif table_name == "videos":
                 mock_result = MagicMock()
                 mock_result.data = [_mock_video(str(video_id), str(project_id), now)]
-                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = (
-                    mock_result
-                )
+                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_result
             elif table_name == "frames":
                 mock_result = MagicMock()
                 mock_result.data = [_mock_frame(str(frame_id), str(video_id), now)]
-                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = (
-                    mock_result
-                )
+                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_result
             elif table_name == "annotations":
                 mock_result = MagicMock()
                 mock_result.data = [
@@ -524,12 +485,8 @@ class TestDeleteAnnotation:
                         str(annotation_id), str(frame_id), str(label_id), now
                     )
                 ]
-                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = (
-                    mock_result
-                )
-                table_mock.delete.return_value.eq.return_value.eq.return_value.execute.return_value = (
-                    MagicMock()
-                )
+                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_result
+                table_mock.delete.return_value.eq.return_value.eq.return_value.execute.return_value = MagicMock()
 
             return table_mock
 
@@ -564,27 +521,19 @@ class TestBulkSaveAnnotations:
             if table_name == "projects":
                 mock_result = MagicMock()
                 mock_result.data = [_mock_project(str(project_id), now)]
-                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = (
-                    mock_result
-                )
+                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_result
             elif table_name == "videos":
                 mock_result = MagicMock()
                 mock_result.data = [_mock_video(str(video_id), str(project_id), now)]
-                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = (
-                    mock_result
-                )
+                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_result
             elif table_name == "frames":
                 mock_result = MagicMock()
                 mock_result.data = [_mock_frame(str(frame_id), str(video_id), now)]
-                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = (
-                    mock_result
-                )
+                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_result
             elif table_name == "labels":
                 mock_result = MagicMock()
                 mock_result.data = [_mock_label(str(label_id), str(project_id), now)]
-                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = (
-                    mock_result
-                )
+                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_result
             elif table_name == "annotations":
                 # Delete returns empty
                 delete_result = MagicMock()
@@ -641,21 +590,15 @@ class TestBulkSaveAnnotations:
             if table_name == "projects":
                 mock_result = MagicMock()
                 mock_result.data = [_mock_project(str(project_id), now)]
-                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = (
-                    mock_result
-                )
+                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_result
             elif table_name == "videos":
                 mock_result = MagicMock()
                 mock_result.data = [_mock_video(str(video_id), str(project_id), now)]
-                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = (
-                    mock_result
-                )
+                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_result
             elif table_name == "frames":
                 mock_result = MagicMock()
                 mock_result.data = [_mock_frame(str(frame_id), str(video_id), now)]
-                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = (
-                    mock_result
-                )
+                table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_result
             elif table_name == "annotations":
                 delete_result = MagicMock()
                 delete_result.data = []
