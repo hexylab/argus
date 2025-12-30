@@ -40,4 +40,4 @@ export interface DrawingRect {
   height: number;
 }
 
-export type AnnotationMode = "pan" | "draw";
+export type AnnotationMode = "select" | "draw";
