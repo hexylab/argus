@@ -10,9 +10,12 @@ from supabase import Client
 from app.api.deps import Auth
 from app.core.storage import (
     DEFAULT_PRESIGNED_URL_EXPIRES_IN,
+    check_object_exists,
     delete_object,
+    generate_presigned_download_url,
     generate_presigned_upload_url,
     generate_s3_key,
+    generate_thumbnail_s3_key,
 )
 from app.crud.project import ProjectNotFoundError
 from app.crud.project import get_project as crud_get_project
@@ -22,9 +25,28 @@ from app.crud.video import delete_video as crud_delete_video
 from app.crud.video import get_video as crud_get_video
 from app.crud.video import get_videos as crud_get_videos
 from app.crud.video import update_video as crud_update_video
-from app.models.video import Video, VideoCreate, VideoStatus, VideoUpdate
+from app.models.video import Video, VideoCreate, VideoResponse, VideoStatus, VideoUpdate
 
 router = APIRouter(prefix="/projects/{project_id}/videos", tags=["videos"])
+
+
+def _video_to_response(video: Video) -> VideoResponse:
+    """Convert Video to VideoResponse with thumbnail URL."""
+    thumbnail_url = None
+
+    # Only generate thumbnail URL for ready videos
+    if video.status == VideoStatus.READY:
+        # Thumbnail for frame 0
+        thumbnail_s3_key = generate_thumbnail_s3_key(
+            video.project_id, video.id, frame_number=0
+        )
+        # Check if thumbnail exists before generating URL
+        # Gracefully handle storage connection errors (e.g., in tests or when storage is unavailable)
+        with contextlib.suppress(Exception):
+            if check_object_exists(thumbnail_s3_key):
+                thumbnail_url = generate_presigned_download_url(thumbnail_s3_key)
+
+    return VideoResponse(**video.model_dump(), thumbnail_url=thumbnail_url)
 
 
 class UploadUrlRequest(BaseModel):
@@ -167,13 +189,13 @@ async def mark_upload_complete(
         ) from e
 
 
-@router.get("", response_model=list[Video])
+@router.get("", response_model=list[VideoResponse])
 async def list_videos(
     project_id: UUID,
     auth: Auth,
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(100, ge=1, le=100, description="Maximum number of records"),
-) -> list[Video]:
+) -> list[VideoResponse]:
     """
     List all videos in a project.
 
@@ -185,15 +207,16 @@ async def list_videos(
     # Verify project ownership
     _verify_project_ownership(auth.client, project_id, owner_id)
 
-    return crud_get_videos(auth.client, project_id, skip=skip, limit=limit)
+    videos = crud_get_videos(auth.client, project_id, skip=skip, limit=limit)
+    return [_video_to_response(v) for v in videos]
 
 
-@router.get("/{video_id}", response_model=Video)
+@router.get("/{video_id}", response_model=VideoResponse)
 async def get_video(
     project_id: UUID,
     video_id: UUID,
     auth: Auth,
-) -> Video:
+) -> VideoResponse:
     """
     Get a specific video by ID.
 
@@ -205,7 +228,8 @@ async def get_video(
     _verify_project_ownership(auth.client, project_id, owner_id)
 
     try:
-        return crud_get_video(auth.client, video_id, project_id)
+        video = crud_get_video(auth.client, video_id, project_id)
+        return _video_to_response(video)
     except VideoNotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

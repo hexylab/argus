@@ -101,12 +101,12 @@ class TestGeneratePresignedUploadUrl:
 class TestGeneratePresignedDownloadUrl:
     """Tests for generate_presigned_download_url."""
 
-    @patch("app.core.storage.get_storage_client")
+    @patch("app.core.storage.get_public_storage_client")
     @patch("app.core.storage.get_settings")
     def test_generates_download_url(
         self, mock_settings: MagicMock, mock_client: MagicMock
     ) -> None:
-        """Test generating download URL."""
+        """Test generating download URL using public endpoint."""
         mock_settings.return_value.minio_bucket = "test-bucket"
         mock_s3 = MagicMock()
         mock_s3.generate_presigned_url.return_value = "https://example.com/download"
