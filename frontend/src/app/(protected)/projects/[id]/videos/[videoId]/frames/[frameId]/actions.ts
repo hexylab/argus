@@ -76,10 +76,22 @@ export async function fetchAllFrames(
       return { error: "認証が必要です" };
     }
 
-    const frames = await getFrames(accessToken, projectId, videoId, {
-      limit: 1000,
-    });
-    return { frames };
+    // Backend limit is 500 max, fetch in batches if needed
+    const allFrames: Frame[] = [];
+    let skip = 0;
+    const limit = 500;
+
+    while (true) {
+      const batch = await getFrames(accessToken, projectId, videoId, {
+        skip,
+        limit,
+      });
+      allFrames.push(...batch);
+      if (batch.length < limit) break;
+      skip += limit;
+    }
+
+    return { frames: allFrames };
   } catch (error) {
     console.error("Failed to fetch frames:", error);
     return { error: "フレーム一覧の取得に失敗しました" };
