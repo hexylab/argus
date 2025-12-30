@@ -8,6 +8,7 @@ import { BoundingBox } from "./BoundingBox";
 import { DrawingLayer } from "./DrawingLayer";
 import { AnnotationToolbar } from "./AnnotationToolbar";
 import { LabelSelectDialog } from "./LabelSelectDialog";
+import { useAnnotationHistory } from "./hooks/useAnnotationHistory";
 import type { Label } from "@/types/label";
 import type {
   AnnotationMode,
@@ -44,9 +45,18 @@ export function AnnotationCanvas({
   });
   const [isLoading, setIsLoading] = useState(true);
 
-  // Annotation state
+  // Annotation state with history
+  const {
+    annotations,
+    setAnnotations,
+    pushHistory,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+  } = useAnnotationHistory([]);
+
   const [mode, setMode] = useState<AnnotationMode>("pan");
-  const [annotations, setAnnotations] = useState<BoundingBoxData[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [pendingRect, setPendingRect] = useState<DrawingRect | null>(null);
   const [showLabelDialog, setShowLabelDialog] = useState(false);
@@ -76,6 +86,23 @@ export function AnnotationCanvas({
         return;
       }
 
+      // Undo: Ctrl+Z (or Cmd+Z on Mac)
+      if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+        return;
+      }
+
+      // Redo: Ctrl+Shift+Z, Ctrl+Y (or Cmd+Shift+Z, Cmd+Y on Mac)
+      if (
+        ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "z") ||
+        ((e.ctrlKey || e.metaKey) && e.key === "y")
+      ) {
+        e.preventDefault();
+        redo();
+        return;
+      }
+
       switch (e.key.toLowerCase()) {
         case "d":
           setMode("draw");
@@ -88,6 +115,7 @@ export function AnnotationCanvas({
         case "delete":
         case "backspace":
           if (selectedId) {
+            pushHistory();
             setAnnotations((prev) => prev.filter((a) => a.id !== selectedId));
             setSelectedId(null);
           }
@@ -97,7 +125,7 @@ export function AnnotationCanvas({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedId]);
+  }, [selectedId, undo, redo, pushHistory, setAnnotations]);
 
   // Fit image to canvas when image loads
   const handleImageLoad = useCallback(
@@ -210,6 +238,8 @@ export function AnnotationCanvas({
       const label = labels.find((l) => l.id === labelId);
       if (!label) return;
 
+      pushHistory();
+
       const newAnnotation: BoundingBoxData = {
         id: `temp-${Date.now()}`,
         x: pendingRect.x,
@@ -225,7 +255,7 @@ export function AnnotationCanvas({
       setPendingRect(null);
       setShowLabelDialog(false);
     },
-    [pendingRect, labels]
+    [pendingRect, labels, pushHistory, setAnnotations]
   );
 
   // Handle label dialog cancel
@@ -238,6 +268,26 @@ export function AnnotationCanvas({
   const handleBboxSelect = useCallback((id: string) => {
     setSelectedId(id);
     setMode("pan"); // Switch to pan mode when selecting
+  }, []);
+
+  // Handle bbox update (from transform)
+  const handleBboxUpdate = useCallback(
+    (id: string, newData: Partial<BoundingBoxData>) => {
+      setAnnotations((prev) =>
+        prev.map((a) => (a.id === id ? { ...a, ...newData } : a))
+      );
+    },
+    [setAnnotations]
+  );
+
+  // Handle transform start (save state for undo)
+  const handleTransformStart = useCallback(() => {
+    pushHistory();
+  }, [pushHistory]);
+
+  // Handle transform end (no-op, state already saved)
+  const handleTransformEnd = useCallback(() => {
+    // Transform complete - state already pushed at start
   }, []);
 
   // Handle stage click (deselect)
@@ -315,7 +365,12 @@ export function AnnotationCanvas({
               key={annotation.id}
               data={annotation}
               isSelected={annotation.id === selectedId}
+              imageWidth={imageSize.width}
+              imageHeight={imageSize.height}
               onSelect={handleBboxSelect}
+              onUpdate={handleBboxUpdate}
+              onTransformStart={handleTransformStart}
+              onTransformEnd={handleTransformEnd}
             />
           ))}
         </Layer>
@@ -335,6 +390,10 @@ export function AnnotationCanvas({
           mode={mode}
           onModeChange={setMode}
           annotationCount={annotations.length}
+          canUndo={canUndo}
+          canRedo={canRedo}
+          onUndo={undo}
+          onRedo={redo}
         />
       </div>
 

@@ -7,12 +7,20 @@ interface AnnotationToolbarProps {
   mode: AnnotationMode;
   onModeChange: (mode: AnnotationMode) => void;
   annotationCount: number;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  onUndo?: () => void;
+  onRedo?: () => void;
 }
 
 export function AnnotationToolbar({
   mode,
   onModeChange,
   annotationCount,
+  canUndo = false,
+  canRedo = false,
+  onUndo,
+  onRedo,
 }: AnnotationToolbarProps) {
   return (
     <div className="flex items-center gap-2">
@@ -69,6 +77,65 @@ export function AnnotationToolbar({
             />
           </svg>
           描画
+        </button>
+      </div>
+
+      {/* Separator */}
+      <div className="w-px h-6 bg-border" />
+
+      {/* Undo/Redo buttons */}
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={onUndo}
+          disabled={!canUndo}
+          className={cn(
+            "p-1.5 rounded-md transition-colors",
+            canUndo
+              ? "text-foreground hover:bg-muted"
+              : "text-muted-foreground/50 cursor-not-allowed"
+          )}
+          title="元に戻す (Ctrl+Z)"
+        >
+          <svg
+            className="size-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={1.5}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"
+            />
+          </svg>
+        </button>
+        <button
+          type="button"
+          onClick={onRedo}
+          disabled={!canRedo}
+          className={cn(
+            "p-1.5 rounded-md transition-colors",
+            canRedo
+              ? "text-foreground hover:bg-muted"
+              : "text-muted-foreground/50 cursor-not-allowed"
+          )}
+          title="やり直す (Ctrl+Y)"
+        >
+          <svg
+            className="size-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={1.5}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M15 15l6-6m0 0l-6-6m6 6H9a6 6 0 000 12h3"
+            />
+          </svg>
         </button>
       </div>
 
