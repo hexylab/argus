@@ -37,7 +37,7 @@ export function AnnotationToolbar({
               ? "bg-background text-foreground shadow-sm"
               : "text-muted-foreground hover:text-foreground"
           )}
-          title="選択モード (V)"
+          title="選択モード (V / Tab)"
         >
           <svg
             className="size-4"
@@ -63,7 +63,7 @@ export function AnnotationToolbar({
               ? "bg-background text-foreground shadow-sm"
               : "text-muted-foreground hover:text-foreground"
           )}
-          title="描画モード (D)"
+          title="描画モード (R / Tab)"
         >
           <svg
             className="size-4"

@@ -14,12 +14,25 @@ interface HelpDialogProps {
 
 const shortcuts = [
   {
+    category: "フレーム操作",
+    items: [
+      { keys: ["D"], description: "前のフレームへ" },
+      { keys: ["F"], description: "次のフレームへ" },
+      { keys: ["Ctrl+S"], description: "保存" },
+    ],
+  },
+  {
     category: "モード切替",
     items: [
+      { keys: ["Tab"], description: "選択/描画モード切替" },
       { keys: ["V"], description: "選択モード" },
-      { keys: ["D", "R"], description: "描画モード" },
+      { keys: ["R"], description: "描画モード" },
       { keys: ["Esc"], description: "選択モードに戻る・選択解除" },
     ],
+  },
+  {
+    category: "ラベル選択",
+    items: [{ keys: ["1", "〜", "9"], description: "ラベルを番号で選択" }],
   },
   {
     category: "編集操作",

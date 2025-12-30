@@ -160,3 +160,31 @@ export async function saveAnnotationsAction(
     return { error: "アノテーションの保存に失敗しました" };
   }
 }
+
+export async function fetchFrameWithAnnotations(
+  projectId: string,
+  videoId: string,
+  frameId: string
+): Promise<{
+  frame?: FrameDetail;
+  annotations?: Annotation[];
+  error?: string;
+}> {
+  try {
+    const accessToken = await getAccessToken();
+
+    if (!accessToken) {
+      return { error: "認証が必要です" };
+    }
+
+    const [frame, annotations] = await Promise.all([
+      getFrame(accessToken, projectId, videoId, frameId),
+      getAnnotations(accessToken, projectId, videoId, frameId),
+    ]);
+
+    return { frame, annotations };
+  } catch (error) {
+    console.error("Failed to fetch frame with annotations:", error);
+    return { error: "フレームデータの取得に失敗しました" };
+  }
+}
