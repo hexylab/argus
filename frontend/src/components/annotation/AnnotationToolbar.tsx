@@ -7,12 +7,22 @@ interface AnnotationToolbarProps {
   mode: AnnotationMode;
   onModeChange: (mode: AnnotationMode) => void;
   annotationCount: number;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  onHelpClick?: () => void;
 }
 
 export function AnnotationToolbar({
   mode,
   onModeChange,
   annotationCount,
+  canUndo = false,
+  canRedo = false,
+  onUndo,
+  onRedo,
+  onHelpClick,
 }: AnnotationToolbarProps) {
   return (
     <div className="flex items-center gap-2">
@@ -20,14 +30,14 @@ export function AnnotationToolbar({
       <div className="flex items-center bg-muted rounded-lg p-1">
         <button
           type="button"
-          onClick={() => onModeChange("pan")}
+          onClick={() => onModeChange("select")}
           className={cn(
             "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors",
-            mode === "pan"
+            mode === "select"
               ? "bg-background text-foreground shadow-sm"
               : "text-muted-foreground hover:text-foreground"
           )}
-          title="移動モード (スペースキー)"
+          title="選択モード (V)"
         >
           <svg
             className="size-4"
@@ -39,10 +49,10 @@ export function AnnotationToolbar({
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
-              d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"
+              d="M15.042 21.672L13.684 16.6m0 0l-2.51 2.225.569-9.47 5.227 7.917-3.286-.672zM12 2.25V4.5m5.834.166l-1.591 1.591M20.25 10.5H18M7.757 14.743l-1.59 1.59M6 10.5H3.75m4.007-4.243l-1.59-1.59"
             />
           </svg>
-          移動
+          選択
         </button>
         <button
           type="button"
@@ -53,7 +63,7 @@ export function AnnotationToolbar({
               ? "bg-background text-foreground shadow-sm"
               : "text-muted-foreground hover:text-foreground"
           )}
-          title="描画モード (Dキー)"
+          title="描画モード (D)"
         >
           <svg
             className="size-4"
@@ -69,6 +79,65 @@ export function AnnotationToolbar({
             />
           </svg>
           描画
+        </button>
+      </div>
+
+      {/* Separator */}
+      <div className="w-px h-6 bg-border" />
+
+      {/* Undo/Redo buttons */}
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={onUndo}
+          disabled={!canUndo}
+          className={cn(
+            "p-1.5 rounded-md transition-colors",
+            canUndo
+              ? "text-foreground hover:bg-muted"
+              : "text-muted-foreground/50 cursor-not-allowed"
+          )}
+          title="元に戻す (Ctrl+Z)"
+        >
+          <svg
+            className="size-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={1.5}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"
+            />
+          </svg>
+        </button>
+        <button
+          type="button"
+          onClick={onRedo}
+          disabled={!canRedo}
+          className={cn(
+            "p-1.5 rounded-md transition-colors",
+            canRedo
+              ? "text-foreground hover:bg-muted"
+              : "text-muted-foreground/50 cursor-not-allowed"
+          )}
+          title="やり直す (Ctrl+Y)"
+        >
+          <svg
+            className="size-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={1.5}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M15 15l6-6m0 0l-6-6m6 6H9a6 6 0 000 12h3"
+            />
+          </svg>
         </button>
       </div>
 
@@ -97,6 +166,31 @@ export function AnnotationToolbar({
         </svg>
         <span>{annotationCount} 件</span>
       </div>
+
+      {/* Separator */}
+      <div className="w-px h-6 bg-border" />
+
+      {/* Help button */}
+      <button
+        type="button"
+        onClick={onHelpClick}
+        className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+        title="ヘルプ (?)"
+      >
+        <svg
+          className="size-4"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={1.5}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z"
+          />
+        </svg>
+      </button>
     </div>
   );
 }
