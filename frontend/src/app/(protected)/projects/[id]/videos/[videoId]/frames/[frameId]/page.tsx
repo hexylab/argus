@@ -27,13 +27,15 @@ export default async function AnnotationPage({ params }: AnnotationPageProps) {
     redirect("/login");
   }
 
-  const [projectResult, videoResult, frameResult, labelsResult] =
-    await Promise.all([
-      fetchProject(projectId),
-      fetchVideo(projectId, videoId),
-      fetchFrame(projectId, videoId, frameId),
-      fetchLabels(projectId),
-    ]);
+  // Fetch project, video, and frame in parallel (required)
+  const [projectResult, videoResult, frameResult] = await Promise.all([
+    fetchProject(projectId),
+    fetchVideo(projectId, videoId),
+    fetchFrame(projectId, videoId, frameId),
+  ]);
+
+  // Fetch labels separately (optional - don't fail page if labels can't be fetched)
+  const labelsResult = await fetchLabels(projectId);
 
   if (projectResult.error || !projectResult.project) {
     notFound();

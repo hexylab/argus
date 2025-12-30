@@ -46,13 +46,15 @@ export async function fetchLabels(projectId: string): Promise<{
     const accessToken = await getAccessToken();
 
     if (!accessToken) {
-      return { error: "認証が必要です" };
+      // Return empty labels instead of error to not break the page
+      return { labels: [] };
     }
 
     const labels = await getLabels(accessToken, projectId);
     return { labels };
   } catch (error) {
+    // Log error but return empty labels to not break the page
     console.error("Failed to fetch labels:", error);
-    return { error: "ラベルの取得に失敗しました" };
+    return { labels: [] };
   }
 }
