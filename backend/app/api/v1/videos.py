@@ -41,8 +41,10 @@ def _video_to_response(video: Video) -> VideoResponse:
             video.project_id, video.id, frame_number=0
         )
         # Check if thumbnail exists before generating URL
-        if check_object_exists(thumbnail_s3_key):
-            thumbnail_url = generate_presigned_download_url(thumbnail_s3_key)
+        # Gracefully handle storage connection errors (e.g., in tests or when storage is unavailable)
+        with contextlib.suppress(Exception):
+            if check_object_exists(thumbnail_s3_key):
+                thumbnail_url = generate_presigned_download_url(thumbnail_s3_key)
 
     return VideoResponse(**video.model_dump(), thumbnail_url=thumbnail_url)
 
