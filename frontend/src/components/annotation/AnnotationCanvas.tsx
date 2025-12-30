@@ -4,10 +4,11 @@ import { useRef, useState, useCallback, useEffect } from "react";
 import { Stage, Layer } from "react-konva";
 import type { Stage as StageType } from "konva/lib/Stage";
 import { ImageLayer } from "./ImageLayer";
-import { BoundingBox } from "./BoundingBox";
+import { BoundingBox, type TransformResult } from "./BoundingBox";
 import { DrawingLayer } from "./DrawingLayer";
 import { AnnotationToolbar } from "./AnnotationToolbar";
 import { LabelSelectDialog } from "./LabelSelectDialog";
+import { HelpDialog } from "./HelpDialog";
 import { useAnnotationHistory } from "./hooks/useAnnotationHistory";
 import type { Label } from "@/types/label";
 import type {
@@ -56,10 +57,14 @@ export function AnnotationCanvas({
     canRedo,
   } = useAnnotationHistory([]);
 
-  const [mode, setMode] = useState<AnnotationMode>("pan");
+  const [mode, setMode] = useState<AnnotationMode>("select");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [pendingRect, setPendingRect] = useState<DrawingRect | null>(null);
   const [showLabelDialog, setShowLabelDialog] = useState(false);
+  const [showHelpDialog, setShowHelpDialog] = useState(false);
+
+  // Space key for temporary panning
+  const [isSpacePressed, setIsSpacePressed] = useState(false);
 
   // Update stage size on container resize
   useEffect(() => {
@@ -86,6 +91,13 @@ export function AnnotationCanvas({
         return;
       }
 
+      // Space key for temporary pan
+      if (e.code === "Space" && !isSpacePressed) {
+        e.preventDefault();
+        setIsSpacePressed(true);
+        return;
+      }
+
       // Undo: Ctrl+Z (or Cmd+Z on Mac)
       if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
         e.preventDefault();
@@ -104,12 +116,15 @@ export function AnnotationCanvas({
       }
 
       switch (e.key.toLowerCase()) {
+        case "v":
+          setMode("select");
+          break;
         case "d":
+        case "r":
           setMode("draw");
           break;
-        case " ":
         case "escape":
-          setMode("pan");
+          setMode("select");
           setSelectedId(null);
           break;
         case "delete":
@@ -120,12 +135,38 @@ export function AnnotationCanvas({
             setSelectedId(null);
           }
           break;
+        case "?":
+          setShowHelpDialog(true);
+          break;
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === "Space") {
+        setIsSpacePressed(false);
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedId, undo, redo, pushHistory, setAnnotations]);
+    window.addEventListener("keyup", handleKeyUp);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+    };
+  }, [selectedId, isSpacePressed, undo, redo, pushHistory, setAnnotations]);
+
+  // Determine if stage should be draggable
+  const isDraggable = mode === "select" || isSpacePressed;
+
+  // Determine if drawing is active
+  const isDrawingActive = mode === "draw" && !isSpacePressed;
+
+  // Get cursor style
+  const getCursor = () => {
+    if (isSpacePressed) return "grab";
+    if (mode === "draw") return "crosshair";
+    return "default";
+  };
 
   // Fit image to canvas when image loads
   const handleImageLoad = useCallback(
@@ -267,28 +308,52 @@ export function AnnotationCanvas({
   // Handle bbox selection
   const handleBboxSelect = useCallback((id: string) => {
     setSelectedId(id);
-    setMode("pan"); // Switch to pan mode when selecting
   }, []);
 
-  // Handle bbox update (from transform)
-  const handleBboxUpdate = useCallback(
-    (id: string, newData: Partial<BoundingBoxData>) => {
+  // Handle bbox drag/transform start (save state for undo)
+  const handleTransformStart = useCallback(() => {
+    pushHistory();
+  }, [pushHistory]);
+
+  // Handle bbox transform end
+  const handleTransformEnd = useCallback(
+    (id: string, result: TransformResult) => {
       setAnnotations((prev) =>
-        prev.map((a) => (a.id === id ? { ...a, ...newData } : a))
+        prev.map((a) =>
+          a.id === id
+            ? {
+                ...a,
+                x: result.x,
+                y: result.y,
+                width: result.width,
+                height: result.height,
+              }
+            : a
+        )
       );
     },
     [setAnnotations]
   );
 
-  // Handle transform start (save state for undo)
-  const handleTransformStart = useCallback(() => {
-    pushHistory();
-  }, [pushHistory]);
-
-  // Handle transform end (no-op, state already saved)
-  const handleTransformEnd = useCallback(() => {
-    // Transform complete - state already pushed at start
-  }, []);
+  // Handle bbox drag end
+  const handleDragBboxEnd = useCallback(
+    (id: string, result: TransformResult) => {
+      setAnnotations((prev) =>
+        prev.map((a) =>
+          a.id === id
+            ? {
+                ...a,
+                x: result.x,
+                y: result.y,
+                width: result.width,
+                height: result.height,
+              }
+            : a
+        )
+      );
+    },
+    [setAnnotations]
+  );
 
   // Handle stage click (deselect)
   const handleStageClick = useCallback(
@@ -343,14 +408,14 @@ export function AnnotationCanvas({
         scaleY={scale}
         x={position.x}
         y={position.y}
-        draggable={mode === "pan"}
+        draggable={isDraggable}
         onWheel={handleWheel}
         onDragEnd={handleDragEnd}
         onClick={handleStageClick}
         onTap={handleStageClick}
         style={{
           backgroundColor: "hsl(var(--muted))",
-          cursor: mode === "draw" ? "crosshair" : "grab",
+          cursor: getCursor(),
         }}
       >
         {/* Image layer */}
@@ -368,9 +433,10 @@ export function AnnotationCanvas({
               imageWidth={imageSize.width}
               imageHeight={imageSize.height}
               onSelect={handleBboxSelect}
-              onUpdate={handleBboxUpdate}
               onTransformStart={handleTransformStart}
               onTransformEnd={handleTransformEnd}
+              onDragStart={handleTransformStart}
+              onDragEnd={handleDragBboxEnd}
             />
           ))}
         </Layer>
@@ -379,7 +445,7 @@ export function AnnotationCanvas({
         <DrawingLayer
           imageWidth={imageSize.width}
           imageHeight={imageSize.height}
-          isActive={mode === "draw"}
+          isActive={isDrawingActive}
           onDrawEnd={handleDrawEnd}
         />
       </Stage>
@@ -394,6 +460,7 @@ export function AnnotationCanvas({
           canRedo={canRedo}
           onUndo={undo}
           onRedo={redo}
+          onHelpClick={() => setShowHelpDialog(true)}
         />
       </div>
 
@@ -480,6 +547,12 @@ export function AnnotationCanvas({
         labels={labels}
         onSelect={handleLabelSelect}
         onCancel={handleLabelCancel}
+      />
+
+      {/* Help dialog */}
+      <HelpDialog
+        open={showHelpDialog}
+        onClose={() => setShowHelpDialog(false)}
       />
     </div>
   );
