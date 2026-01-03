@@ -143,18 +143,19 @@ logs:
 # GPU Commands (requires NVIDIA GPU + Container Toolkit)
 # ===========================================
 
-# Start dev environment with GPU worker
+# Start dev environment with GPU workers (SigLIP + SAM3)
 up-gpu:
 	@echo "Starting Supabase..."
 	@npx supabase start || true
 	@echo ""
-	@echo "Starting Docker services with GPU worker..."
+	@echo "Starting Docker services with GPU workers..."
 	docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml -f docker/docker-compose.gpu.yml up -d
 	@echo ""
 	@echo "GPU development environment started:"
 	@echo "  Frontend:       http://localhost:$(FRONTEND_PORT)"
 	@echo "  Backend:        http://localhost:$(BACKEND_PORT)"
-	@echo "  GPU Worker:     Running (Celery queue: gpu)"
+	@echo "  SigLIP Worker:  Running (Celery queue: siglip)"
+	@echo "  SAM3 Worker:    Running (Celery queue: sam3)"
 	@echo ""
 	@echo "Run 'make verify-gpu' to verify GPU environment."
 
@@ -168,24 +169,24 @@ down-gpu:
 	@echo ""
 	@echo "GPU environment stopped."
 
-# Rebuild GPU worker
+# Rebuild GPU workers
 rebuild-gpu:
-	@echo "Rebuilding GPU worker..."
-	docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml -f docker/docker-compose.gpu.yml build gpu-worker
+	@echo "Rebuilding GPU workers..."
+	docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml -f docker/docker-compose.gpu.yml build siglip-worker sam3-worker
 	@echo ""
-	@echo "Restarting GPU worker..."
-	docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml -f docker/docker-compose.gpu.yml up -d gpu-worker
+	@echo "Restarting GPU workers..."
+	docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml -f docker/docker-compose.gpu.yml up -d siglip-worker sam3-worker
 
-# Verify GPU environment
+# Verify GPU environment (using SigLIP worker)
 verify-gpu:
 	@echo "Verifying GPU environment..."
 	docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml -f docker/docker-compose.gpu.yml \
-		run --rm gpu-worker uv run python scripts/verify_gpu.py
+		run --rm siglip-worker uv run python scripts/verify_gpu.py
 
-# Show GPU worker logs
+# Show GPU workers logs
 logs-gpu:
 	docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml -f docker/docker-compose.gpu.yml \
-		logs -f gpu-worker
+		logs -f siglip-worker sam3-worker
 
 # ===========================================
 # Development Commands
