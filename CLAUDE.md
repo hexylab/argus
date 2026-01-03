@@ -27,35 +27,29 @@ git checkout -b feature/#1-repository-structure
 - 不明点があればユーザーに確認してから実装開始
 - **計画は `.plans/YYYYMMDD_HHMMSS_計画名.md` に保存**
 
-### 3. 実装とローカルテスト
+### 3. 計画実行（実装とローカルテスト）
 
-Docker 内で CI 相当のテストを実行してから PR 発行:
+- 計画実行の前に必ず計画を.plans/ディレクトリに計画書として作成
+- 実装は計画書に基づき、既存の実装・テスト・ドキュメントを踏襲
+- 新規ファイルやメソッド作成時は、既存ファイルやメソッドを参照して必要性を十分検討
+- Docker 内で CI 相当のテストを実行してから PR 発行
+- **変更した部分に応じて適切なコマンドを選択**:
 
 ```bash
-# 推奨: Makefile を使用
-make lint-docker   # Backend + Frontend の lint
-make test-docker   # Backend + Frontend のテスト
+# 全体 (Backend + Frontend 両方変更時)
+make ci-docker            # lint + test 一括実行
 
-# 個別実行
-# Backend (Python)
-docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml \
-  run --rm backend uv run ruff check .
-docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml \
-  run --rm backend uv run ruff format --check .
-docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml \
-  run --rm backend uv run mypy .
-docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml \
-  run --rm backend uv run pytest
+# Backend のみ変更時
+make lint-backend-docker  # Backend lint
+make test-backend-docker  # Backend test
 
-# Frontend (TypeScript)
-docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml \
-  run --rm frontend pnpm lint
-docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml \
-  run --rm frontend pnpm format:check
-docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml \
-  run --rm frontend pnpm typecheck
-docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml \
-  run --rm frontend pnpm test
+# Frontend のみ変更時
+make lint-frontend-docker # Frontend lint
+make test-frontend-docker # Frontend test
+
+# 個別実行 (必要に応じて)
+make lint-docker          # Backend + Frontend の lint
+make test-docker          # Backend + Frontend のテスト
 ```
 
 ### 4. PR 発行とマージ
