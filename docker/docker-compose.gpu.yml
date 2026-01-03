@@ -1,5 +1,9 @@
-# GPU Worker services
+# GPU Worker services (SigLIP + SAM3)
 # Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.gpu.yml up
+#
+# Architecture:
+#   - siglip-worker: SigLIP 2 for image/text embedding (transformers stable)
+#   - sam3-worker: SAM 3 for auto-annotation (transformers dev)
 #
 # Requirements:
 #   - NVIDIA GPU with CUDA support
@@ -16,11 +20,12 @@
 #   sudo systemctl restart docker
 
 services:
-  gpu-worker:
+  # SigLIP Worker - Image/Text embedding extraction
+  siglip-worker:
     build:
       context: ../backend
-      dockerfile: Dockerfile.gpu
-    container_name: argus-gpu-worker
+      dockerfile: Dockerfile.siglip
+    container_name: argus-siglip-worker
     environment:
       # Supabase (via host.docker.internal to access CLI-managed services)
       - SUPABASE_URL=http://host.docker.internal:54331
@@ -51,7 +56,45 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
-    command: uv run celery -A app.celery worker --loglevel=info -Q gpu
+    command: uv run celery -A app.celery worker --loglevel=info -Q siglip
+
+  # SAM3 Worker - Auto-annotation with Segment Anything Model 3
+  sam3-worker:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile.sam3
+    container_name: argus-sam3-worker
+    environment:
+      # Supabase (via host.docker.internal to access CLI-managed services)
+      - SUPABASE_URL=http://host.docker.internal:54331
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
+      # Database (Supabase CLI PostgreSQL)
+      - DATABASE_URL=postgresql://postgres:postgres@host.docker.internal:54332/postgres
+      # Redis & MinIO (Docker network)
+      - REDIS_URL=redis://redis:6379/0
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-minioadmin}
+      # Model cache
+      - HF_HOME=/models/.cache
+      - TRANSFORMERS_CACHE=/models/.cache/transformers
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ../backend:/app
+      - model_cache:/models
+    depends_on:
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    command: uv run celery -A app.celery worker --loglevel=info -Q sam3
 
 volumes:
   model_cache:
