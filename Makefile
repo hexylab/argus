@@ -1,4 +1,4 @@
-.PHONY: help setup up up-dev rebuild-dev down down-dev down-all logs lint lint-docker test test-docker clean ps supabase-start supabase-stop supabase-status
+.PHONY: help setup up up-dev rebuild-dev down down-dev down-all logs lint lint-docker lint-backend-docker lint-frontend-docker test test-docker test-backend-docker test-frontend-docker ci ci-docker clean ps supabase-start supabase-stop supabase-status
 
 # Load environment variables from docker/.env if exists
 -include docker/.env
@@ -31,12 +31,18 @@ help:
 	@echo "  logs      - Show logs"
 	@echo ""
 	@echo "Development:"
-	@echo "  setup       - Initial setup (install dependencies)"
-	@echo "  lint        - Run linters (local)"
-	@echo "  lint-docker - Run linters (Docker)"
-	@echo "  test        - Run tests (local)"
-	@echo "  test-docker - Run tests (Docker)"
-	@echo "  clean       - Clean up caches"
+	@echo "  setup                - Initial setup (install dependencies)"
+	@echo "  lint                 - Run linters (local)"
+	@echo "  lint-docker          - Run linters (Docker)"
+	@echo "  lint-backend-docker  - Run backend linters (Docker)"
+	@echo "  lint-frontend-docker - Run frontend linters (Docker)"
+	@echo "  test                 - Run tests (local)"
+	@echo "  test-docker          - Run tests (Docker)"
+	@echo "  test-backend-docker  - Run backend tests (Docker)"
+	@echo "  test-frontend-docker - Run frontend tests (Docker)"
+	@echo "  ci                   - Run CI checks: lint + test (local)"
+	@echo "  ci-docker            - Run CI checks: lint + test (Docker)"
+	@echo "  clean                - Clean up caches"
 
 # ===========================================
 # Supabase Commands
@@ -140,8 +146,8 @@ lint:
 	cd frontend && pnpm lint
 	cd frontend && pnpm format:check
 
-# Run linters (Docker)
-lint-docker:
+# Run backend linters (Docker)
+lint-backend-docker:
 	@echo "Running backend linters in Docker..."
 	docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml \
 		run --rm backend uv run ruff check .
@@ -149,6 +155,9 @@ lint-docker:
 		run --rm backend uv run ruff format --check .
 	docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml \
 		run --rm backend uv run mypy .
+
+# Run frontend linters (Docker)
+lint-frontend-docker:
 	@echo "Running frontend linters in Docker..."
 	docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml \
 		run --rm frontend pnpm lint
@@ -157,6 +166,9 @@ lint-docker:
 	docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml \
 		run --rm frontend pnpm typecheck
 
+# Run linters (Docker)
+lint-docker: lint-backend-docker lint-frontend-docker
+
 # Run tests (local)
 test:
 	@echo "Running backend tests..."
@@ -164,14 +176,26 @@ test:
 	@echo "Running frontend tests..."
 	cd frontend && pnpm test
 
-# Run tests (Docker)
-test-docker:
+# Run backend tests (Docker)
+test-backend-docker:
 	@echo "Running backend tests in Docker..."
 	docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml \
 		run --rm backend uv run pytest
+
+# Run frontend tests (Docker)
+test-frontend-docker:
 	@echo "Running frontend tests in Docker..."
 	docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml \
 		run --rm frontend pnpm test
+
+# Run tests (Docker)
+test-docker: test-backend-docker test-frontend-docker
+
+# CI equivalent (local)
+ci: lint test
+
+# CI equivalent (Docker)
+ci-docker: lint-docker test-docker
 
 # Clean up
 clean:
