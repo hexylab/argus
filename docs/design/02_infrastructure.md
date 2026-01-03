@@ -56,9 +56,14 @@ flowchart LR
     subgraph DockerCompose["Docker Compose"]
         FE["Frontend<br/>:3000"]
         API["FastAPI<br/>:8000"]
-        Worker["Celery Worker"]
+        CPUWorker["CPU Worker<br/>(フレーム抽出)"]
         MinIO["MinIO<br/>:9000"]
         Redis["Redis<br/>:6379"]
+    end
+
+    subgraph GPUWorkers["GPU Workers (docker-compose.gpu.yml)"]
+        SigLIP["SigLIP Worker<br/>(特徴抽出)"]
+        SAM3["SAM3 Worker<br/>(自動アノテ)"]
     end
 
     FE --> Kong
@@ -67,9 +72,27 @@ flowchart LR
     API --> DB
     API --> MinIO
     API --> Redis
-    Worker --> Redis
-    Worker --> MinIO
+    CPUWorker --> Redis
+    CPUWorker --> MinIO
+    SigLIP --> Redis
+    SAM3 --> Redis
+    SigLIP --> MinIO
+    SAM3 --> MinIO
 ```
+
+#### GPU Worker アーキテクチャ
+
+SigLIP 2 と SAM 3 は依存関係の衝突を避けるため、分離コンテナで実装:
+
+| Worker | 役割 | transformers | Celery Queue |
+|--------|------|--------------|--------------|
+| SigLIP Worker | 画像/テキスト特徴抽出 | stable | `siglip` |
+| SAM3 Worker | 自動アノテーション | dev | `sam3` |
+
+**分離の理由**:
+- SAM 3 は transformers 開発版が必要、SigLIP 2 は stable 版で動作
+- 障害分離: 一方がクラッシュしても他に影響なし
+- 独立スケーリング: 負荷に応じて Worker 数を調整可能
 
 #### ポート一覧
 
@@ -137,6 +160,31 @@ services:
       - SUPABASE_URL=http://host.docker.internal:54331
     extra_hosts:
       - "host.docker.internal:host-gateway"
+
+# docker/docker-compose.gpu.yml - GPU Workers (SigLIP + SAM3)
+# 使用: docker compose -f ... -f docker-compose.gpu.yml up
+services:
+  siglip-worker:
+    build:
+      dockerfile: Dockerfile.siglip  # transformers stable
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+    command: celery -A app.celery worker -Q siglip
+
+  sam3-worker:
+    build:
+      dockerfile: Dockerfile.sam3    # transformers dev + SAM3
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+    command: celery -A app.celery worker -Q sam3
 ```
 
 #### テスト実行
