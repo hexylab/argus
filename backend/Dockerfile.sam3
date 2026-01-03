@@ -63,9 +63,15 @@ COPY pyproject.toml uv.lock README.md ./
 # Install base dependencies
 RUN uv sync --frozen --no-dev
 
-# Install SAM3 specific dependencies
+# Install PyTorch with CUDA support (into uv venv)
+RUN uv pip install --no-cache \
+    torch==2.5.1 \
+    torchvision==0.20.1 \
+    --index-url https://download.pytorch.org/whl/cu121
+
+# Install SAM3 specific dependencies (into uv venv)
 # SAM3 requires transformers development version
-RUN pip3 install --no-cache-dir \
+RUN uv pip install --no-cache \
     "numpy==1.26.4" \
     einops \
     ftfy \
@@ -73,14 +79,15 @@ RUN pip3 install --no-cache-dir \
     regex \
     portalocker \
     pycocotools \
-    psutil
+    psutil \
+    accelerate>=0.34.0
 
 # Install Transformers development version (required for SAM3 support)
-RUN pip3 install --no-cache-dir git+https://github.com/huggingface/transformers.git
+RUN uv pip install --no-cache git+https://github.com/huggingface/transformers.git
 
 # Clone and install SAM3
 RUN git clone https://github.com/facebookresearch/sam3.git /opt/sam3 && \
-    pip install -e /opt/sam3
+    uv pip install -e /opt/sam3
 
 # Add SAM3 to Python path
 ENV PYTHONPATH="/opt/sam3:${PYTHONPATH}"
