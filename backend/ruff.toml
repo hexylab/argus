@@ -28,6 +28,10 @@ known-first-party = ["app"]
 "tests/**/*.py" = [
     "S101",   # assert allowed in tests
 ]
+"scripts/**/*.py" = [
+    "T201",   # print allowed in CLI scripts
+    "S101",   # assert allowed in scripts
+]
 
 [format]
 quote-style = "double"

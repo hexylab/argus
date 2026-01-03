@@ -1,0 +1,102 @@
+# GPU Worker services (SigLIP + SAM3)
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.gpu.yml up
+#
+# Architecture:
+#   - siglip-worker: SigLIP 2 for image/text embedding (transformers stable)
+#   - sam3-worker: SAM 3 for auto-annotation (transformers dev)
+#
+# Requirements:
+#   - NVIDIA GPU with CUDA support
+#   - NVIDIA Container Toolkit installed
+#   - Docker configured with nvidia runtime
+#
+# Installation (Ubuntu):
+#   curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+#   curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
+#     sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+#     sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+#   sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit
+#   sudo nvidia-ctk runtime configure --runtime=docker
+#   sudo systemctl restart docker
+
+services:
+  # SigLIP Worker - Image/Text embedding extraction
+  siglip-worker:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile.siglip
+    container_name: argus-siglip-worker
+    environment:
+      # Supabase (via host.docker.internal to access CLI-managed services)
+      - SUPABASE_URL=http://host.docker.internal:54331
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
+      # Database (Supabase CLI PostgreSQL)
+      - DATABASE_URL=postgresql://postgres:postgres@host.docker.internal:54332/postgres
+      # Redis & MinIO (Docker network)
+      - REDIS_URL=redis://redis:6379/0
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-minioadmin}
+      # Model cache
+      - HF_HOME=/models/.cache
+      - TRANSFORMERS_CACHE=/models/.cache/transformers
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      # Note: /app is NOT mounted - GPU workers use baked-in code with GPU dependencies
+      # For code changes, rebuild with: make rebuild-gpu
+      - model_cache:/models
+    depends_on:
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    command: uv run celery -A app.celery worker --loglevel=info -Q siglip
+
+  # SAM3 Worker - Auto-annotation with Segment Anything Model 3
+  sam3-worker:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile.sam3
+    container_name: argus-sam3-worker
+    environment:
+      # Supabase (via host.docker.internal to access CLI-managed services)
+      - SUPABASE_URL=http://host.docker.internal:54331
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
+      # Database (Supabase CLI PostgreSQL)
+      - DATABASE_URL=postgresql://postgres:postgres@host.docker.internal:54332/postgres
+      # Redis & MinIO (Docker network)
+      - REDIS_URL=redis://redis:6379/0
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-minioadmin}
+      # Model cache
+      - HF_HOME=/models/.cache
+      - TRANSFORMERS_CACHE=/models/.cache/transformers
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      # Note: /app is NOT mounted - GPU workers use baked-in code with GPU dependencies
+      # For code changes, rebuild with: make rebuild-gpu
+      - model_cache:/models
+    depends_on:
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    command: uv run celery -A app.celery worker --loglevel=info -Q sam3
+
+volumes:
+  model_cache:

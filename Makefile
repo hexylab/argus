@@ -1,4 +1,4 @@
-.PHONY: help setup up up-dev rebuild-dev down down-dev down-all logs lint lint-docker lint-backend-docker lint-frontend-docker test test-docker test-backend-docker test-frontend-docker ci ci-docker clean ps supabase-start supabase-stop supabase-status
+.PHONY: help setup up up-dev rebuild-dev down down-dev down-all logs lint lint-docker lint-backend-docker lint-frontend-docker test test-docker test-backend-docker test-frontend-docker ci ci-docker clean ps supabase-start supabase-stop supabase-status up-gpu down-gpu rebuild-gpu verify-gpu logs-gpu
 
 # Load environment variables from docker/.env if exists
 -include docker/.env
@@ -25,10 +25,17 @@ help:
 	@echo "  up-dev      - Start full dev environment (Supabase + infra + apps)"
 	@echo "  rebuild-dev - Rebuild and restart dev environment"
 	@echo "  down        - Stop infrastructure"
-	@echo "  down-dev  - Stop full dev environment (Supabase + infra + apps)"
-	@echo "  down-all  - Stop all services and remove volumes"
-	@echo "  ps        - Show running containers"
-	@echo "  logs      - Show logs"
+	@echo "  down-dev    - Stop full dev environment (Supabase + infra + apps)"
+	@echo "  down-all    - Stop all services and remove volumes"
+	@echo "  ps          - Show running containers"
+	@echo "  logs        - Show logs"
+	@echo ""
+	@echo "GPU (requires NVIDIA GPU + Container Toolkit):"
+	@echo "  up-gpu      - Start dev environment with GPU worker"
+	@echo "  down-gpu    - Stop GPU environment"
+	@echo "  rebuild-gpu - Rebuild GPU worker"
+	@echo "  verify-gpu  - Verify GPU environment"
+	@echo "  logs-gpu    - Show GPU worker logs"
 	@echo ""
 	@echo "Development:"
 	@echo "  setup                - Initial setup (install dependencies)"
@@ -131,6 +138,55 @@ ps:
 # Show logs
 logs:
 	docker compose -f docker/docker-compose.yml logs -f
+
+# ===========================================
+# GPU Commands (requires NVIDIA GPU + Container Toolkit)
+# ===========================================
+
+# Start dev environment with GPU workers (SigLIP + SAM3)
+up-gpu:
+	@echo "Starting Supabase..."
+	@npx supabase start || true
+	@echo ""
+	@echo "Starting Docker services with GPU workers..."
+	docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml -f docker/docker-compose.gpu.yml up -d
+	@echo ""
+	@echo "GPU development environment started:"
+	@echo "  Frontend:       http://localhost:$(FRONTEND_PORT)"
+	@echo "  Backend:        http://localhost:$(BACKEND_PORT)"
+	@echo "  SigLIP Worker:  Running (Celery queue: siglip)"
+	@echo "  SAM3 Worker:    Running (Celery queue: sam3)"
+	@echo ""
+	@echo "Run 'make verify-gpu' to verify GPU environment."
+
+# Stop GPU environment
+down-gpu:
+	@echo "Stopping Docker services..."
+	docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml -f docker/docker-compose.gpu.yml down
+	@echo ""
+	@echo "Stopping Supabase..."
+	@npx supabase stop || true
+	@echo ""
+	@echo "GPU environment stopped."
+
+# Rebuild GPU workers
+rebuild-gpu:
+	@echo "Rebuilding GPU workers..."
+	docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml -f docker/docker-compose.gpu.yml build siglip-worker sam3-worker
+	@echo ""
+	@echo "Restarting GPU workers..."
+	docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml -f docker/docker-compose.gpu.yml up -d siglip-worker sam3-worker
+
+# Verify GPU environment (using SigLIP worker)
+verify-gpu:
+	@echo "Verifying GPU environment..."
+	docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml -f docker/docker-compose.gpu.yml \
+		run --rm siglip-worker uv run python scripts/verify_gpu.py
+
+# Show GPU workers logs
+logs-gpu:
+	docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml -f docker/docker-compose.gpu.yml \
+		logs -f siglip-worker sam3-worker
 
 # ===========================================
 # Development Commands
