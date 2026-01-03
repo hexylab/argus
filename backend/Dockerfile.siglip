@@ -41,6 +41,9 @@ RUN add-apt-repository ppa:deadsnakes/ppa -y && \
     && rm -rf /var/lib/apt/lists/* && \
     update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1
 
+# Install pip for Python 3.12
+RUN curl -sS https://bootstrap.pypa.io/get-pip.py | python3.12
+
 # Install uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
@@ -54,8 +57,20 @@ ENV TRANSFORMERS_CACHE="/models/.cache/transformers"
 # Copy dependency files
 COPY pyproject.toml uv.lock README.md ./
 
-# Install dependencies (uses transformers stable version from pyproject.toml)
+# Install base dependencies
 RUN uv sync --frozen --no-dev
+
+# Install PyTorch with CUDA support (into uv venv)
+RUN uv pip install --no-cache \
+    torch==2.5.1 \
+    torchvision==0.20.1 \
+    --index-url https://download.pytorch.org/whl/cu121
+
+# Install transformers (stable) for SigLIP 2 (into uv venv)
+RUN uv pip install --no-cache \
+    transformers>=4.45.0 \
+    accelerate>=0.34.0 \
+    sentencepiece>=0.2.0
 
 # Copy application code
 COPY . .
