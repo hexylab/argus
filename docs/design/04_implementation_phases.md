@@ -191,9 +191,11 @@ flowchart TB
 - [ ] レビュー進捗表示
 
 #### 2.4 GPU 環境
-- [ ] GPU Worker 用 Dockerfile
-- [ ] ローカル GPU 対応 (CUDA)
-- [ ] モデルキャッシュ
+- [ ] GPU Worker 用 Dockerfile (SigLIP/SAM3 分離コンテナ)
+  - `Dockerfile.siglip`: transformers stable
+  - `Dockerfile.sam3`: transformers dev + SAM3
+- [ ] ローカル GPU 対応 (CUDA 12.1+, NVIDIA Container Toolkit)
+- [ ] モデルキャッシュ (共有ボリューム)
 
 ### 完了基準
 - [ ] 「cpu」と入力すると CPU が映ったフレームが検索できる
