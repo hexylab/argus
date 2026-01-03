@@ -11,6 +11,63 @@ interface ExportPageProps {
   }>;
 }
 
+// Breadcrumb separator
+function ChevronRight({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={1.5}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M8.25 4.5l7.5 7.5-7.5 7.5"
+      />
+    </svg>
+  );
+}
+
+// Back arrow icon
+function ArrowLeftIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"
+      />
+    </svg>
+  );
+}
+
+// Export icon for page header
+function ExportIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={1.5}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m.75 12l3 3m0 0l3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"
+      />
+    </svg>
+  );
+}
+
 export default async function ExportPage({ params }: ExportPageProps) {
   const { id: projectId } = await params;
 
@@ -33,83 +90,60 @@ export default async function ExportPage({ params }: ExportPageProps) {
 
   return (
     <div className="space-y-8">
-      {/* Header */}
-      <div className="space-y-4">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Link
-            href="/dashboard"
-            className="hover:text-foreground transition-colors"
-          >
-            ダッシュボード
-          </Link>
-          <svg
-            className="size-4 opacity-50"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={1.5}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M8.25 4.5l7.5 7.5-7.5 7.5"
-            />
-          </svg>
-          <Link
-            href={`/projects/${projectId}`}
-            className="hover:text-foreground transition-colors"
-          >
-            {project.name}
-          </Link>
-          <svg
-            className="size-4 opacity-50"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={1.5}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M8.25 4.5l7.5 7.5-7.5 7.5"
-            />
-          </svg>
-          <span className="text-foreground">エクスポート</span>
-        </div>
+      {/* Breadcrumb Navigation */}
+      <nav className="flex items-center gap-1.5 text-sm">
+        <Link
+          href="/dashboard"
+          className="text-muted-foreground transition-colors hover:text-foreground"
+        >
+          ダッシュボード
+        </Link>
+        <ChevronRight className="size-4 text-muted-foreground/50" />
+        <Link
+          href={`/projects/${projectId}`}
+          className="text-muted-foreground transition-colors hover:text-foreground"
+        >
+          {project.name}
+        </Link>
+        <ChevronRight className="size-4 text-muted-foreground/50" />
+        <span className="font-medium text-foreground">エクスポート</span>
+      </nav>
 
-        <div className="flex items-start justify-between gap-4">
-          <div className="space-y-1">
-            <h1 className="text-3xl font-bold tracking-tight">
-              データエクスポート
-            </h1>
-            <p className="text-muted-foreground">
-              アノテーションデータを機械学習フレームワークで利用可能な形式でエクスポートします
-            </p>
+      {/* Page Header */}
+      <header className="flex items-start justify-between gap-6">
+        <div className="space-y-3">
+          <div className="flex items-center gap-4">
+            <div className="flex size-12 items-center justify-center rounded-xl bg-foreground/5">
+              <ExportIcon className="size-6 text-foreground/70" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">
+                データエクスポート
+              </h1>
+              <p className="mt-0.5 text-sm text-muted-foreground">
+                {project.name}
+              </p>
+            </div>
           </div>
-
-          <Link href={`/projects/${projectId}`}>
-            <Button variant="outline" className="gap-2">
-              <svg
-                className="size-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"
-                />
-              </svg>
-              戻る
-            </Button>
-          </Link>
+          <p className="max-w-xl text-muted-foreground">
+            アノテーションデータを機械学習フレームワークで利用可能な形式でエクスポートします。
+            COCO または YOLO フォーマットを選択してください。
+          </p>
         </div>
-      </div>
+
+        <Link href={`/projects/${projectId}`}>
+          <Button variant="outline" className="gap-2">
+            <ArrowLeftIcon className="size-4" />
+            戻る
+          </Button>
+        </Link>
+      </header>
+
+      {/* Divider */}
+      <div className="border-t border-border" />
 
       {/* Export Form */}
-      <div className="max-w-3xl">
+      <div className="mx-auto max-w-4xl pb-12">
         <ExportForm projectId={projectId} projectName={project.name} />
       </div>
     </div>

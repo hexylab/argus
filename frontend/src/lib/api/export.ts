@@ -39,6 +39,17 @@ export interface YOLOExport {
   annotations: Record<string, string>;
 }
 
+// Image export item
+export interface ImageExportItem {
+  filename: string;
+  url: string;
+}
+
+// Images export response
+export interface ImagesExport {
+  images: ImageExportItem[];
+}
+
 export async function exportCOCO(
   accessToken: string,
   projectId: string
@@ -57,4 +68,17 @@ export async function exportYOLO(
     accessToken,
     method: "GET",
   });
+}
+
+export async function exportImages(
+  accessToken: string,
+  projectId: string
+): Promise<ImagesExport> {
+  return apiClient<ImagesExport>(
+    `/api/v1/projects/${projectId}/export/images`,
+    {
+      accessToken,
+      method: "GET",
+    }
+  );
 }
