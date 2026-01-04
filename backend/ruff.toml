@@ -32,6 +32,9 @@ known-first-party = ["app"]
     "T201",   # print allowed in CLI scripts
     "S101",   # assert allowed in scripts
 ]
+"app/api/**/*.py" = [
+    "B008",   # Query() in defaults is standard FastAPI pattern
+]
 
 [format]
 quote-style = "double"

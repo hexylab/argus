@@ -109,3 +109,50 @@ class Annotation(AnnotationBase, SupabaseModel):
             width=self.bbox_width,
             height=self.bbox_height,
         )
+
+
+class AnnotationWithFrame(Annotation):
+    """Annotation with frame information for review."""
+
+    frame_number: int
+    frame_s3_key: str
+    frame_thumbnail_s3_key: str | None = None
+    video_id: UUID
+    label_name: str
+    label_color: str
+
+
+class AnnotationReviewStats(BaseSchema):
+    """Statistics for annotation review."""
+
+    total_count: int
+    reviewed_count: int
+    pending_count: int
+    auto_count: int
+    manual_count: int
+
+
+class BulkApproveRequest(BaseSchema):
+    """Request for bulk approving annotations."""
+
+    annotation_ids: list[UUID] = Field(..., min_length=1, max_length=1000)
+
+
+class BulkApproveResponse(BaseSchema):
+    """Response for bulk approve operation."""
+
+    approved_count: int
+    errors: list[str] = Field(default_factory=list)
+
+
+class BulkDeleteRequest(BaseSchema):
+    """Request for bulk deleting annotations."""
+
+    annotation_ids: list[UUID] = Field(..., min_length=1, max_length=1000)
+
+
+class BulkDeleteResponse(BaseSchema):
+    """Response for bulk delete operation."""
+
+    deleted_count: int
+    errors: list[str] = Field(default_factory=list)
