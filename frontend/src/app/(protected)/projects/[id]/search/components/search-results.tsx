@@ -19,6 +19,10 @@ interface SearchResultsProps {
   onSelectionChange: (frameId: string, selected: boolean) => void;
   onSelectAll: () => void;
   onDeselectAll: () => void;
+  // Threshold-based selection
+  similarityThreshold: number;
+  onThresholdChange: (value: number) => void;
+  onSelectAboveThreshold: () => void;
 }
 
 interface ResultCardProps {
@@ -296,6 +300,118 @@ function ResultsSkeleton() {
   );
 }
 
+// Threshold slider for bulk selection
+function ThresholdSelector({
+  threshold,
+  onThresholdChange,
+  onSelectAboveThreshold,
+  countAboveThreshold,
+}: {
+  threshold: number;
+  onThresholdChange: (value: number) => void;
+  onSelectAboveThreshold: () => void;
+  countAboveThreshold: number;
+}) {
+  // Color based on threshold
+  const getThresholdColor = () => {
+    if (threshold >= 0.8) return "text-green-600 dark:text-green-400";
+    if (threshold >= 0.6) return "text-amber-600 dark:text-amber-400";
+    return "text-gray-600 dark:text-gray-400";
+  };
+
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-3 px-3 py-2 rounded-lg",
+        "bg-muted/50 border border-border/50"
+      )}
+    >
+      <div className="flex items-center gap-2 min-w-0">
+        <svg
+          className="size-4 text-muted-foreground shrink-0"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={1.5}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M3 7.5L7.5 3m0 0L12 7.5M7.5 3v13.5m13.5 0L16.5 21m0 0L12 16.5m4.5 4.5V7.5"
+          />
+        </svg>
+        <span className="text-xs text-muted-foreground whitespace-nowrap">
+          類似度閾値
+        </span>
+      </div>
+
+      <div className="flex items-center gap-2 flex-1 min-w-0">
+        <input
+          type="range"
+          min="0"
+          max="1"
+          step="0.01"
+          value={threshold}
+          onChange={(e) => onThresholdChange(parseFloat(e.target.value))}
+          className={cn(
+            "w-full h-1.5 rounded-full appearance-none cursor-pointer",
+            "bg-gradient-to-r from-gray-300 via-amber-400 to-green-500",
+            "[&::-webkit-slider-thumb]:appearance-none",
+            "[&::-webkit-slider-thumb]:size-3.5",
+            "[&::-webkit-slider-thumb]:rounded-full",
+            "[&::-webkit-slider-thumb]:bg-white",
+            "[&::-webkit-slider-thumb]:border-2",
+            "[&::-webkit-slider-thumb]:border-primary",
+            "[&::-webkit-slider-thumb]:shadow-md",
+            "[&::-webkit-slider-thumb]:cursor-pointer",
+            "[&::-webkit-slider-thumb]:transition-transform",
+            "[&::-webkit-slider-thumb]:hover:scale-110"
+          )}
+        />
+        <span
+          className={cn(
+            "text-sm font-mono font-semibold tabular-nums w-12 text-right",
+            getThresholdColor()
+          )}
+        >
+          {threshold.toFixed(2)}
+        </span>
+      </div>
+
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={onSelectAboveThreshold}
+        disabled={countAboveThreshold === 0}
+        className="h-7 text-xs gap-1.5 shrink-0"
+      >
+        <svg
+          className="size-3.5"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+          />
+        </svg>
+        <span>一括選択</span>
+        <span
+          className={cn(
+            "px-1 py-0.5 rounded text-[10px] font-bold",
+            "bg-primary/10 text-primary tabular-nums"
+          )}
+        >
+          {countAboveThreshold}
+        </span>
+      </Button>
+    </div>
+  );
+}
+
 // Selection toolbar that appears when in selection mode
 function SelectionToolbar({
   selectedCount,
@@ -350,6 +466,9 @@ export function SearchResults({
   onSelectionChange,
   onSelectAll,
   onDeselectAll,
+  similarityThreshold,
+  onThresholdChange,
+  onSelectAboveThreshold,
 }: SearchResultsProps) {
   if (results.length === 0) {
     return <EmptyState />;
@@ -357,6 +476,9 @@ export function SearchResults({
 
   const selectedCount = selectedFrames.size;
   const allSelected = selectedCount === results.length && results.length > 0;
+  const countAboveThreshold = results.filter(
+    (r) => r.similarity >= similarityThreshold
+  ).length;
 
   return (
     <div className="space-y-4">
@@ -370,6 +492,16 @@ export function SearchResults({
           件
         </p>
       </div>
+
+      {/* Threshold selector - show in selection mode */}
+      {selectionMode ? (
+        <ThresholdSelector
+          threshold={similarityThreshold}
+          onThresholdChange={onThresholdChange}
+          onSelectAboveThreshold={onSelectAboveThreshold}
+          countAboveThreshold={countAboveThreshold}
+        />
+      ) : null}
 
       {/* Selection toolbar */}
       {selectionMode ? (
