@@ -12,6 +12,7 @@ import {
 import { ReviewStats } from "./components/review-stats";
 import { ReviewFilters } from "./components/review-filters";
 import { ReviewGrid, ReviewGridSkeleton } from "./components/review-grid";
+import { QuickReviewModal } from "./components/quick-review-modal";
 import type {
   AnnotationWithFrame,
   AnnotationReviewStats,
@@ -62,6 +63,24 @@ function TrashIcon({ className }: { className?: string }) {
   );
 }
 
+function PlayIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 010 1.972l-11.54 6.347a1.125 1.125 0 01-1.667-.986V5.653z"
+      />
+    </svg>
+  );
+}
+
 export function ReviewClient({
   projectId,
   labels,
@@ -78,6 +97,9 @@ export function ReviewClient({
   // Selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
+  // Quick review modal state
+  const [quickReviewIndex, setQuickReviewIndex] = useState<number | null>(null);
+
   // Filter state
   const [filters, setFilters] = useState<{
     source?: "auto" | "manual" | "imported";
@@ -86,6 +108,18 @@ export function ReviewClient({
     maxConfidence?: number;
     labelId?: string;
   }>({});
+
+  // Computed: unreviewed annotations
+  const unreviewedAnnotations = useMemo(
+    () => annotations.filter((a) => !a.reviewed),
+    [annotations]
+  );
+
+  // Computed: high confidence unreviewed annotations (80%+)
+  const highConfidenceUnreviewed = useMemo(
+    () => annotations.filter((a) => !a.reviewed && (a.confidence ?? 0) >= 0.8),
+    [annotations]
+  );
 
   // Refresh data
   const refreshData = useCallback(async () => {
@@ -166,6 +200,59 @@ export function ReviewClient({
     setSelectedIds(new Set());
   }, []);
 
+  // Single item approve
+  const handleSingleApprove = useCallback(
+    async (id: string) => {
+      setError(null);
+      const result = await approveAnnotations(projectId, [id]);
+
+      if (result.error) {
+        setError(result.error);
+      } else {
+        setAnnotations((prev) =>
+          prev.map((a) => (a.id === id ? { ...a, reviewed: true } : a))
+        );
+        setStats((prev) => ({
+          ...prev,
+          reviewed_count: prev.reviewed_count + 1,
+          pending_count: prev.pending_count - 1,
+        }));
+      }
+    },
+    [projectId]
+  );
+
+  // Single item delete
+  const handleSingleDelete = useCallback(
+    async (id: string) => {
+      setError(null);
+      const result = await deleteAnnotations(projectId, [id]);
+
+      if (result.error) {
+        setError(result.error);
+      } else {
+        const deletedAnnotation = annotations.find((a) => a.id === id);
+        setAnnotations((prev) => prev.filter((a) => a.id !== id));
+        setStats((prev) => ({
+          ...prev,
+          total_count: prev.total_count - 1,
+          pending_count: deletedAnnotation?.reviewed
+            ? prev.pending_count
+            : prev.pending_count - 1,
+          reviewed_count: deletedAnnotation?.reviewed
+            ? prev.reviewed_count - 1
+            : prev.reviewed_count,
+        }));
+        setSelectedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      }
+    },
+    [projectId, annotations]
+  );
+
   // Bulk approve
   const handleBulkApprove = useCallback(async () => {
     if (selectedIds.size === 0) return;
@@ -178,7 +265,6 @@ export function ReviewClient({
     if (result.error) {
       setError(result.error);
     } else {
-      // Update local state
       setAnnotations((prev) =>
         prev.map((a) => (selectedIds.has(a.id) ? { ...a, reviewed: true } : a))
       );
@@ -207,7 +293,6 @@ export function ReviewClient({
     if (result.error) {
       setError(result.error);
     } else {
-      // Remove from local state
       setAnnotations((prev) => prev.filter((a) => !selectedIds.has(a.id)));
       setStats((prev) => ({
         ...prev,
@@ -223,6 +308,81 @@ export function ReviewClient({
     setIsProcessing(false);
   }, [projectId, selectedIds]);
 
+  // Approve all unreviewed
+  const handleApproveAllUnreviewed = useCallback(async () => {
+    const ids = unreviewedAnnotations.map((a) => a.id);
+    if (ids.length === 0) return;
+
+    setIsProcessing(true);
+    setError(null);
+
+    const result = await approveAnnotations(projectId, ids);
+
+    if (result.error) {
+      setError(result.error);
+    } else {
+      setAnnotations((prev) =>
+        prev.map((a) => (!a.reviewed ? { ...a, reviewed: true } : a))
+      );
+      setStats((prev) => ({
+        ...prev,
+        reviewed_count:
+          prev.reviewed_count + (result.result?.approved_count ?? 0),
+        pending_count: 0,
+      }));
+    }
+
+    setIsProcessing(false);
+  }, [projectId, unreviewedAnnotations]);
+
+  // Approve high confidence unreviewed
+  const handleApproveHighConfidence = useCallback(async () => {
+    const ids = highConfidenceUnreviewed.map((a) => a.id);
+    if (ids.length === 0) return;
+
+    setIsProcessing(true);
+    setError(null);
+
+    const result = await approveAnnotations(projectId, ids);
+
+    if (result.error) {
+      setError(result.error);
+    } else {
+      const approvedSet = new Set(ids);
+      setAnnotations((prev) =>
+        prev.map((a) => (approvedSet.has(a.id) ? { ...a, reviewed: true } : a))
+      );
+      setStats((prev) => ({
+        ...prev,
+        reviewed_count:
+          prev.reviewed_count + (result.result?.approved_count ?? 0),
+        pending_count:
+          prev.pending_count - (result.result?.approved_count ?? 0),
+      }));
+    }
+
+    setIsProcessing(false);
+  }, [projectId, highConfidenceUnreviewed]);
+
+  // Quick review modal handlers
+  const handleOpenQuickReview = useCallback((index: number) => {
+    setQuickReviewIndex(index);
+  }, []);
+
+  const handleCloseQuickReview = useCallback(() => {
+    setQuickReviewIndex(null);
+  }, []);
+
+  const handleStartQuickReview = useCallback(() => {
+    // Start with first unreviewed annotation
+    const firstUnreviewedIndex = annotations.findIndex((a) => !a.reviewed);
+    if (firstUnreviewedIndex >= 0) {
+      setQuickReviewIndex(firstUnreviewedIndex);
+    } else if (annotations.length > 0) {
+      setQuickReviewIndex(0);
+    }
+  }, [annotations]);
+
   // Count of unreviewed selected
   const selectedUnreviewedCount = useMemo(() => {
     return annotations.filter((a) => selectedIds.has(a.id) && !a.reviewed)
@@ -234,6 +394,77 @@ export function ReviewClient({
       {/* Stats */}
       <ReviewStats stats={stats} />
 
+      {/* Quick Actions Bar */}
+      {unreviewedAnnotations.length > 0 ? (
+        <div
+          className={cn(
+            "flex flex-wrap items-center gap-3 p-4 -mx-4",
+            "bg-gradient-to-r from-blue-50 via-indigo-50/50 to-blue-50",
+            "dark:from-blue-950/30 dark:via-indigo-950/20 dark:to-blue-950/30",
+            "border-y border-blue-200/50 dark:border-blue-800/30"
+          )}
+        >
+          <div className="flex items-center gap-2 text-sm text-blue-700 dark:text-blue-300">
+            <svg
+              className="size-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"
+              />
+            </svg>
+            <span className="font-medium">クイックアクション</span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleStartQuickReview}
+              className="gap-2"
+            >
+              <PlayIcon className="size-4" />
+              1件ずつレビュー
+            </Button>
+
+            {highConfidenceUnreviewed.length > 0 ? (
+              <Button
+                size="sm"
+                onClick={handleApproveHighConfidence}
+                disabled={isProcessing}
+                className={cn(
+                  "gap-2",
+                  "bg-gradient-to-r from-emerald-600 to-emerald-700",
+                  "hover:from-emerald-500 hover:to-emerald-600"
+                )}
+              >
+                <CheckIcon className="size-4" />
+                信頼度80%+を承認 ({highConfidenceUnreviewed.length})
+              </Button>
+            ) : null}
+
+            <Button
+              size="sm"
+              onClick={handleApproveAllUnreviewed}
+              disabled={isProcessing}
+              className={cn(
+                "gap-2",
+                "bg-gradient-to-r from-blue-600 to-blue-700",
+                "hover:from-blue-500 hover:to-blue-600"
+              )}
+            >
+              <CheckIcon className="size-4" />
+              すべて承認 ({unreviewedAnnotations.length})
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
       {/* Filters */}
       <ReviewFilters
         labels={labels}
@@ -243,8 +474,8 @@ export function ReviewClient({
         isLoading={isLoading}
       />
 
-      {/* Action Bar */}
-      {selectedIds.size > 0 && (
+      {/* Selection Action Bar */}
+      {selectedIds.size > 0 ? (
         <div
           className={cn(
             "flex items-center justify-between gap-4 px-4 py-3 -mx-4",
@@ -276,7 +507,7 @@ export function ReviewClient({
           </div>
 
           <div className="flex items-center gap-2">
-            {selectedUnreviewedCount > 0 && (
+            {selectedUnreviewedCount > 0 ? (
               <Button
                 onClick={handleBulkApprove}
                 disabled={isProcessing}
@@ -290,7 +521,7 @@ export function ReviewClient({
                 <CheckIcon className="size-4" />
                 承認 ({selectedUnreviewedCount})
               </Button>
-            )}
+            ) : null}
             <Button
               variant="destructive"
               onClick={handleBulkDelete}
@@ -302,7 +533,7 @@ export function ReviewClient({
             </Button>
           </div>
         </div>
-      )}
+      ) : null}
 
       {/* Error */}
       {error ? (
@@ -379,8 +610,23 @@ export function ReviewClient({
           projectId={projectId}
           selectedIds={selectedIds}
           onSelectionChange={handleSelectionChange}
+          onApprove={handleSingleApprove}
+          onDelete={handleSingleDelete}
+          onOpenQuickReview={handleOpenQuickReview}
         />
       )}
+
+      {/* Quick Review Modal */}
+      {quickReviewIndex !== null ? (
+        <QuickReviewModal
+          annotations={annotations}
+          projectId={projectId}
+          initialIndex={quickReviewIndex}
+          onApprove={handleSingleApprove}
+          onDelete={handleSingleDelete}
+          onClose={handleCloseQuickReview}
+        />
+      ) : null}
     </div>
   );
 }

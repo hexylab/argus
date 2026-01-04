@@ -3,7 +3,7 @@
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel
 
 from app.api.deps import Auth
@@ -38,6 +38,9 @@ class ImagesExportResponse(BaseModel):
 async def export_coco(
     project_id: UUID,
     auth: Auth,
+    reviewed_only: bool = Query(
+        False, description="If true, only export reviewed annotations"
+    ),
 ) -> dict[str, Any]:
     """
     Export project annotations in COCO format.
@@ -58,13 +61,16 @@ async def export_coco(
 
     # Export to COCO format
     exporter = COCOExporter(auth.client)
-    return exporter.export_project(project_id)
+    return exporter.export_project(project_id, reviewed_only=reviewed_only)
 
 
 @router.get("/yolo", response_model=dict[str, Any])
 async def export_yolo(
     project_id: UUID,
     auth: Auth,
+    reviewed_only: bool = Query(
+        False, description="If true, only export reviewed annotations"
+    ),
 ) -> dict[str, Any]:
     """
     Export project annotations in YOLO format.
@@ -91,7 +97,7 @@ async def export_yolo(
 
     # Export to YOLO format
     exporter = YOLOExporter(auth.client)
-    return exporter.export_project(project_id)
+    return exporter.export_project(project_id, reviewed_only=reviewed_only)
 
 
 @router.get("/images", response_model=ImagesExportResponse)
