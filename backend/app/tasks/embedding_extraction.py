@@ -175,3 +175,23 @@ def extract_embeddings(
 
         # Retry on transient errors
         raise self.retry(exc=e) from e
+
+
+@celery_app.task(queue="siglip")  # type: ignore[untyped-decorator]
+def extract_text_embedding(query: str) -> list[float]:
+    """Extract text embedding using SigLIP 2.
+
+    This task runs on the siglip-worker (GPU Worker) which has
+    torch and transformers installed.
+
+    Args:
+        query: Text query to extract embedding for.
+
+    Returns:
+        List of floats representing the text embedding.
+    """
+    from app.ml.siglip.embeddings import extract_text_embeddings
+
+    embedding = extract_text_embeddings([query])[0]
+    result: list[float] = embedding.tolist()
+    return result

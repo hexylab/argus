@@ -8,30 +8,32 @@ The singleton pattern ensures the model is loaded only once per process.
 """
 
 from functools import lru_cache
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from app.core.config import get_settings
 
 if TYPE_CHECKING:
-    from transformers import SiglipModel, SiglipProcessor
+    from transformers import PreTrainedModel, ProcessorMixin
 
 
 @lru_cache(maxsize=1)
-def get_siglip_model() -> "SiglipModel":
+def get_siglip_model() -> "PreTrainedModel":
     """Get cached SigLIP 2 model instance.
 
     Returns:
-        SiglipModel: The loaded and configured model.
+        PreTrainedModel: The loaded and configured model (Siglip2Model).
 
     Note:
         This function should only be called in GPU Worker context.
         The model is loaded lazily and cached for subsequent calls.
+        AutoModel is used to automatically load the correct model class
+        (Siglip2Model for SigLIP 2 checkpoints).
     """
-    from transformers import SiglipModel
+    from transformers import AutoModel
 
     settings = get_settings()
 
-    model = SiglipModel.from_pretrained(settings.siglip_model_name)
+    model: Any = AutoModel.from_pretrained(settings.siglip_model_name)
     model.to(settings.siglip_device)
     model.eval()
 
@@ -39,18 +41,20 @@ def get_siglip_model() -> "SiglipModel":
 
 
 @lru_cache(maxsize=1)
-def get_siglip_processor() -> "SiglipProcessor":
+def get_siglip_processor() -> "ProcessorMixin":
     """Get cached SigLIP 2 processor instance.
 
     Returns:
-        SiglipProcessor: The loaded processor for image/text preprocessing.
+        ProcessorMixin: The loaded processor for image/text preprocessing
+        (Siglip2Processor for SigLIP 2 checkpoints).
 
     Note:
         This function should only be called in GPU Worker context.
         The processor is loaded lazily and cached for subsequent calls.
+        AutoProcessor is used to automatically load the correct processor class.
     """
-    from transformers import SiglipProcessor
+    from transformers import AutoProcessor
 
     settings = get_settings()
 
-    return SiglipProcessor.from_pretrained(settings.siglip_model_name)
+    return AutoProcessor.from_pretrained(settings.siglip_model_name)

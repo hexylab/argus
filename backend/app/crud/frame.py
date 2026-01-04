@@ -187,7 +187,7 @@ def delete_frames_by_video(client: Client, video_id: UUID) -> int:
 
 def search_similar_frames(
     client: Client,
-    query_embedding: NDArray[np.float32],
+    query_embedding: NDArray[np.float32] | list[float],
     project_id: UUID,
     limit: int = 100,
 ) -> list[FrameSimilarityResult]:
@@ -207,7 +207,10 @@ def search_similar_frames(
         List of similar frames with similarity scores (0-1, higher is more similar).
     """
     # Convert numpy array to list for JSON serialization
-    embedding_list = query_embedding.tolist()
+    if isinstance(query_embedding, list):
+        embedding_list = query_embedding
+    else:
+        embedding_list = query_embedding.tolist()
 
     result = client.rpc(
         "search_similar_frames",
