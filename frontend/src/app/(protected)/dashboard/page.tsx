@@ -72,7 +72,7 @@ export default async function DashboardPage() {
               </p>
             </div>
           </div>
-          <p className="max-w-xl text-muted-foreground">
+          <p className="text-muted-foreground">
             映像AIモデルの学習データ生成を管理します。
             プロジェクトを作成して映像をアップロードし、アノテーションを行いましょう。
           </p>

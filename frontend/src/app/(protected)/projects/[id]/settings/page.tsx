@@ -194,9 +194,8 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
               </p>
             </div>
           </div>
-          <p className="max-w-xl text-muted-foreground">
-            プロジェクトの基本情報とラベルを管理します。
-            ラベルはアノテーション時に使用されます。
+          <p className="text-muted-foreground">
+            プロジェクトの基本情報とラベルを管理します。ラベルはアノテーション時に使用されます。
           </p>
         </div>
 

@@ -87,13 +87,13 @@ up:
 	@echo "  MinIO API:    localhost:$(MINIO_API_PORT)"
 	@echo "  MinIO Console: localhost:$(MINIO_CONSOLE_PORT)"
 
-# Start full development environment
+# Start full development environment (with GPU workers)
 up-dev:
 	@echo "Starting Supabase..."
 	@npx supabase start || true
 	@echo ""
-	@echo "Starting Docker services..."
-	docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml up -d
+	@echo "Starting Docker services with GPU workers..."
+	docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml -f docker/docker-compose.gpu.yml up -d
 	@echo ""
 	@echo "Development environment started:"
 	@echo "  Frontend:       http://localhost:$(FRONTEND_PORT)"
@@ -102,24 +102,30 @@ up-dev:
 	@echo "  Supabase Studio: http://localhost:54333"
 	@echo "  Inbucket (Mail): http://localhost:54334"
 	@echo "  MinIO Console:  http://localhost:$(MINIO_CONSOLE_PORT)"
+	@echo "  SigLIP Worker:  Running (Celery queue: siglip)"
+	@echo "  SAM3 Worker:    Running (Celery queue: sam3)"
+	@echo ""
+	@echo "Run 'make verify-gpu' to verify GPU environment."
 
-# Rebuild and restart development environment
+# Rebuild and restart development environment (with GPU workers)
 rebuild-dev:
 	@echo "Rebuilding and restarting dev environment..."
-	docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml up -d --build
+	docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml -f docker/docker-compose.gpu.yml up -d --build
 	@echo ""
 	@echo "Development environment rebuilt and started:"
 	@echo "  Frontend:       http://localhost:$(FRONTEND_PORT)"
 	@echo "  Backend:        http://localhost:$(BACKEND_PORT)"
+	@echo "  SigLIP Worker:  Running"
+	@echo "  SAM3 Worker:    Running"
 
 # Stop infrastructure
 down:
 	docker compose -f docker/docker-compose.yml down
 
-# Stop full development environment
+# Stop full development environment (with GPU workers)
 down-dev:
 	@echo "Stopping Docker services..."
-	docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml down
+	docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml -f docker/docker-compose.gpu.yml down
 	@echo ""
 	@echo "Stopping Supabase..."
 	@npx supabase stop || true
@@ -128,7 +134,7 @@ down-dev:
 
 # Stop all and remove volumes
 down-all:
-	docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml down -v
+	docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml -f docker/docker-compose.gpu.yml down -v
 	npx supabase stop --no-backup || true
 
 # Show running containers
