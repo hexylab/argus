@@ -1,11 +1,19 @@
 """CRUD operations for annotations."""
 
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
 from supabase import Client
 
-from app.models.annotation import Annotation, AnnotationCreate, AnnotationUpdate
+from app.models.annotation import (
+    Annotation,
+    AnnotationCreate,
+    AnnotationReviewStats,
+    AnnotationSource,
+    AnnotationUpdate,
+    AnnotationWithFrame,
+)
 
 
 class AnnotationNotFoundError(Exception):
@@ -260,3 +268,189 @@ def bulk_create_annotations(
 
     rows: list[dict[str, Any]] = result.data  # type: ignore[assignment]
     return [Annotation(**row) for row in rows]
+
+
+def get_project_annotations(
+    client: Client,
+    project_id: UUID,
+    source: AnnotationSource | None = None,
+    reviewed: bool | None = None,
+    min_confidence: float | None = None,
+    max_confidence: float | None = None,
+    label_id: UUID | None = None,
+    video_id: UUID | None = None,
+    skip: int = 0,
+    limit: int = 100,
+) -> list[AnnotationWithFrame]:
+    """
+    Get annotations for a project with filtering options.
+
+    Args:
+        client: Supabase client instance.
+        project_id: UUID of the project.
+        source: Filter by annotation source.
+        reviewed: Filter by reviewed status.
+        min_confidence: Minimum confidence threshold.
+        max_confidence: Maximum confidence threshold.
+        label_id: Filter by label ID.
+        video_id: Filter by video ID.
+        skip: Number of records to skip.
+        limit: Maximum number of records to return.
+
+    Returns:
+        List of annotations with frame information.
+    """
+    # Build query with joins to frames, videos, and labels
+    query = (
+        client.table("annotations")
+        .select(
+            "*, "
+            "frames!inner(frame_number, s3_key, thumbnail_s3_key, video_id, "
+            "videos!inner(project_id)), "
+            "labels!inner(name, color)"
+        )
+        .eq("frames.videos.project_id", str(project_id))
+    )
+
+    # Apply filters
+    if source is not None:
+        query = query.eq("source", source.value)
+    if reviewed is not None:
+        query = query.eq("reviewed", reviewed)
+    if min_confidence is not None:
+        query = query.gte("confidence", min_confidence)
+    if max_confidence is not None:
+        query = query.lte("confidence", max_confidence)
+    if label_id is not None:
+        query = query.eq("label_id", str(label_id))
+    if video_id is not None:
+        query = query.eq("frames.video_id", str(video_id))
+
+    # Order by confidence descending (low confidence first for review)
+    query = query.order("confidence", desc=False, nullsfirst=True)
+    query = query.range(skip, skip + limit - 1)
+
+    result = query.execute()
+
+    annotations: list[AnnotationWithFrame] = []
+    rows: list[dict[str, Any]] = result.data or []  # type: ignore[assignment]
+    for row in rows:
+        frame_data = row.pop("frames", {})
+        label_data = row.pop("labels", {})
+
+        annotations.append(
+            AnnotationWithFrame(
+                **row,
+                frame_number=frame_data.get("frame_number", 0),
+                frame_s3_key=frame_data.get("s3_key", ""),
+                frame_thumbnail_s3_key=frame_data.get("thumbnail_s3_key"),
+                video_id=frame_data.get("video_id"),
+                label_name=label_data.get("name", ""),
+                label_color=label_data.get("color", "#808080"),
+            )
+        )
+
+    return annotations
+
+
+def get_project_annotation_stats(
+    client: Client,
+    project_id: UUID,
+) -> AnnotationReviewStats:
+    """
+    Get annotation statistics for a project.
+
+    Args:
+        client: Supabase client instance.
+        project_id: UUID of the project.
+
+    Returns:
+        Annotation statistics.
+    """
+    # Get all annotations for the project
+    result = (
+        client.table("annotations")
+        .select("reviewed, source, frames!inner(videos!inner(project_id))")
+        .eq("frames.videos.project_id", str(project_id))
+        .execute()
+    )
+
+    rows: list[dict[str, Any]] = result.data or []  # type: ignore[assignment]
+
+    total_count = len(rows)
+    reviewed_count = sum(1 for r in rows if r.get("reviewed"))
+    pending_count = total_count - reviewed_count
+    auto_count = sum(1 for r in rows if r.get("source") == "auto")
+    manual_count = sum(1 for r in rows if r.get("source") == "manual")
+
+    return AnnotationReviewStats(
+        total_count=total_count,
+        reviewed_count=reviewed_count,
+        pending_count=pending_count,
+        auto_count=auto_count,
+        manual_count=manual_count,
+    )
+
+
+def bulk_approve_annotations(
+    client: Client,
+    annotation_ids: list[UUID],
+    reviewed_by: UUID,
+) -> int:
+    """
+    Bulk approve annotations.
+
+    Args:
+        client: Supabase client instance.
+        annotation_ids: List of annotation IDs to approve.
+        reviewed_by: UUID of the user approving the annotations.
+
+    Returns:
+        Number of approved annotations.
+    """
+    if not annotation_ids:
+        return 0
+
+    now = datetime.now(UTC)
+
+    result = (
+        client.table("annotations")
+        .update(
+            {
+                "reviewed": True,
+                "reviewed_by": str(reviewed_by),
+                "reviewed_at": now.isoformat(),
+            }
+        )
+        .in_("id", [str(aid) for aid in annotation_ids])
+        .execute()
+    )
+
+    return len(result.data) if result.data else 0
+
+
+def bulk_delete_annotations(
+    client: Client,
+    annotation_ids: list[UUID],
+) -> int:
+    """
+    Bulk delete annotations.
+
+    Args:
+        client: Supabase client instance.
+        annotation_ids: List of annotation IDs to delete.
+
+    Returns:
+        Number of deleted annotations.
+    """
+    if not annotation_ids:
+        return 0
+
+    result = (
+        client.table("annotations")
+        .delete()
+        .in_("id", [str(aid) for aid in annotation_ids])
+        .execute()
+    )
+
+    return len(result.data) if result.data else 0
