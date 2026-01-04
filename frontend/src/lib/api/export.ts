@@ -52,9 +52,16 @@ export interface ImagesExport {
 
 export async function exportCOCO(
   accessToken: string,
-  projectId: string
+  projectId: string,
+  reviewedOnly: boolean = false
 ): Promise<COCOExport> {
-  return apiClient<COCOExport>(`/api/v1/projects/${projectId}/export/coco`, {
+  const params = new URLSearchParams();
+  if (reviewedOnly) {
+    params.set("reviewed_only", "true");
+  }
+  const query = params.toString();
+  const url = `/api/v1/projects/${projectId}/export/coco${query ? `?${query}` : ""}`;
+  return apiClient<COCOExport>(url, {
     accessToken,
     method: "GET",
   });
@@ -62,9 +69,16 @@ export async function exportCOCO(
 
 export async function exportYOLO(
   accessToken: string,
-  projectId: string
+  projectId: string,
+  reviewedOnly: boolean = false
 ): Promise<YOLOExport> {
-  return apiClient<YOLOExport>(`/api/v1/projects/${projectId}/export/yolo`, {
+  const params = new URLSearchParams();
+  if (reviewedOnly) {
+    params.set("reviewed_only", "true");
+  }
+  const query = params.toString();
+  const url = `/api/v1/projects/${projectId}/export/yolo${query ? `?${query}` : ""}`;
+  return apiClient<YOLOExport>(url, {
     accessToken,
     method: "GET",
   });

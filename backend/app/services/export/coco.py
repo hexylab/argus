@@ -34,16 +34,21 @@ class COCOExporter:
         """
         self.client = client
 
-    def export_project(self, project_id: UUID) -> dict[str, Any]:
+    def export_project(
+        self, project_id: UUID, reviewed_only: bool = False
+    ) -> dict[str, Any]:
         """
         Export a project to COCO format.
 
         Args:
             project_id: UUID of the project to export.
+            reviewed_only: If True, only export reviewed annotations.
 
         Returns:
             COCO format dictionary.
         """
+        self._reviewed_only = reviewed_only
+
         # Fetch all data
         videos = self._get_all_videos(project_id)
         labels = self._get_all_labels(project_id)
@@ -144,6 +149,10 @@ class COCOExporter:
             if len(annotations) < limit:
                 break
             skip += limit
+
+        # Filter by reviewed status if required
+        if self._reviewed_only:
+            all_annotations = [a for a in all_annotations if a.reviewed]
 
         return all_annotations
 
