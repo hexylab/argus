@@ -244,7 +244,7 @@ class TestModelLoader:
         # Mock transformers module before importing model
         mock_transformers = MagicMock()
         mock_model = MagicMock()
-        mock_transformers.SiglipModel.from_pretrained.return_value = mock_model
+        mock_transformers.AutoModel.from_pretrained.return_value = mock_model
         sys.modules["transformers"] = mock_transformers
 
         # Clear cached modules before test
@@ -269,7 +269,7 @@ class TestModelLoader:
                 result = siglip_model_module.get_siglip_model()
 
                 # Verify
-                mock_transformers.SiglipModel.from_pretrained.assert_called_once_with(
+                mock_transformers.AutoModel.from_pretrained.assert_called_once_with(
                     "google/siglip2-base-patch16-256"
                 )
                 mock_model.to.assert_called_once_with("cpu")
@@ -292,7 +292,7 @@ class TestModelLoader:
         # Mock transformers module before importing model
         mock_transformers = MagicMock()
         mock_processor = MagicMock()
-        mock_transformers.SiglipProcessor.from_pretrained.return_value = mock_processor
+        mock_transformers.AutoProcessor.from_pretrained.return_value = mock_processor
         sys.modules["transformers"] = mock_transformers
 
         # Clear cached modules before test
@@ -316,7 +316,7 @@ class TestModelLoader:
                 result = siglip_model_module.get_siglip_processor()
 
                 # Verify
-                mock_transformers.SiglipProcessor.from_pretrained.assert_called_once_with(
+                mock_transformers.AutoProcessor.from_pretrained.assert_called_once_with(
                     "google/siglip2-base-patch16-256"
                 )
                 assert result == mock_processor
