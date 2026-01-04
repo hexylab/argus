@@ -66,6 +66,10 @@ def extract_text_embeddings(texts: list[str]) -> NDArray[np.float32]:
     Returns:
         NDArray of shape (N, embedding_dim) containing L2 normalized embeddings.
 
+    Note:
+        SigLIP 2 was trained with padding="max_length" and max_length=64.
+        Using different settings may result in poor similarity scores.
+
     Example:
         >>> texts = ["a photo of a cat", "a photo of a dog"]
         >>> embeddings = extract_text_embeddings(texts)
@@ -75,7 +79,11 @@ def extract_text_embeddings(texts: list[str]) -> NDArray[np.float32]:
     model = get_siglip_model()
     processor = get_siglip_processor()
 
-    inputs = processor(text=texts, return_tensors="pt", padding=True)
+    # IMPORTANT: SigLIP 2 requires padding="max_length" and max_length=64
+    # as that's how the model was trained
+    inputs = processor(
+        text=texts, return_tensors="pt", padding="max_length", max_length=64
+    )
     inputs = {k: v.to(model.device) for k, v in inputs.items()}
 
     with torch.no_grad():
