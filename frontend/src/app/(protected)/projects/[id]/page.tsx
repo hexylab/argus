@@ -245,9 +245,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
             </div>
           </div>
           {project.description ? (
-            <p className="max-w-xl text-muted-foreground">
-              {project.description}
-            </p>
+            <p className="text-muted-foreground">{project.description}</p>
           ) : null}
         </div>
 
