@@ -1,0 +1,158 @@
+"use server";
+
+import { createClient } from "@/lib/supabase/server";
+import {
+  getProjectAnnotations,
+  getAnnotationStats,
+  bulkApproveAnnotations,
+  bulkDeleteAnnotations,
+} from "@/lib/api/annotation-review";
+import { getLabels } from "@/lib/api/labels";
+import { getProject } from "@/lib/api/projects";
+import type {
+  AnnotationWithFrame,
+  AnnotationReviewStats,
+  AnnotationFilterParams,
+  BulkApproveResponse,
+  BulkDeleteResponse,
+} from "@/types/annotation-review";
+import type { Label } from "@/types/label";
+import type { Project } from "@/types/project";
+
+async function getAccessToken(): Promise<string | null> {
+  const supabase = await createClient();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  return session?.access_token ?? null;
+}
+
+export async function fetchProject(projectId: string): Promise<{
+  project?: Project;
+  error?: string;
+}> {
+  try {
+    const accessToken = await getAccessToken();
+
+    if (!accessToken) {
+      return { error: "認証が必要です" };
+    }
+
+    const project = await getProject(accessToken, projectId);
+    return { project };
+  } catch {
+    return { error: "プロジェクトの取得に失敗しました" };
+  }
+}
+
+export async function fetchLabels(projectId: string): Promise<{
+  labels?: Label[];
+  error?: string;
+}> {
+  try {
+    const accessToken = await getAccessToken();
+
+    if (!accessToken) {
+      return { error: "認証が必要です" };
+    }
+
+    const labels = await getLabels(accessToken, projectId);
+    return { labels };
+  } catch {
+    return { error: "ラベルの取得に失敗しました" };
+  }
+}
+
+export async function fetchAnnotations(
+  projectId: string,
+  params: AnnotationFilterParams = {}
+): Promise<{
+  annotations?: AnnotationWithFrame[];
+  error?: string;
+}> {
+  try {
+    const accessToken = await getAccessToken();
+
+    if (!accessToken) {
+      return { error: "認証が必要です" };
+    }
+
+    const annotations = await getProjectAnnotations(
+      accessToken,
+      projectId,
+      params
+    );
+    return { annotations };
+  } catch {
+    return { error: "アノテーションの取得に失敗しました" };
+  }
+}
+
+export async function fetchStats(projectId: string): Promise<{
+  stats?: AnnotationReviewStats;
+  error?: string;
+}> {
+  try {
+    const accessToken = await getAccessToken();
+
+    if (!accessToken) {
+      return { error: "認証が必要です" };
+    }
+
+    const stats = await getAnnotationStats(accessToken, projectId);
+    return { stats };
+  } catch {
+    return { error: "統計の取得に失敗しました" };
+  }
+}
+
+export async function approveAnnotations(
+  projectId: string,
+  annotationIds: string[]
+): Promise<{
+  result?: BulkApproveResponse;
+  error?: string;
+}> {
+  try {
+    const accessToken = await getAccessToken();
+
+    if (!accessToken) {
+      return { error: "認証が必要です" };
+    }
+
+    const result = await bulkApproveAnnotations(
+      accessToken,
+      projectId,
+      annotationIds
+    );
+    return { result };
+  } catch {
+    return { error: "承認に失敗しました" };
+  }
+}
+
+export async function deleteAnnotations(
+  projectId: string,
+  annotationIds: string[]
+): Promise<{
+  result?: BulkDeleteResponse;
+  error?: string;
+}> {
+  try {
+    const accessToken = await getAccessToken();
+
+    if (!accessToken) {
+      return { error: "認証が必要です" };
+    }
+
+    const result = await bulkDeleteAnnotations(
+      accessToken,
+      projectId,
+      annotationIds
+    );
+    return { result };
+  } catch {
+    return { error: "削除に失敗しました" };
+  }
+}
