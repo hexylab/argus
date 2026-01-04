@@ -47,6 +47,7 @@ export function SearchClient({ projectId }: SearchClientProps) {
   // Selection state
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedFrames, setSelectedFrames] = useState<Set<string>>(new Set());
+  const [similarityThreshold, setSimilarityThreshold] = useState(0.5);
 
   // Auto-annotation dialog state
   const [isAutoAnnotateDialogOpen, setIsAutoAnnotateDialogOpen] =
@@ -129,6 +130,17 @@ export function SearchClient({ projectId }: SearchClientProps) {
   const handleDeselectAll = useCallback(() => {
     setSelectedFrames(new Set());
   }, []);
+
+  const handleThresholdChange = useCallback((value: number) => {
+    setSimilarityThreshold(value);
+  }, []);
+
+  const handleSelectAboveThreshold = useCallback(() => {
+    const framesAboveThreshold = results
+      .filter((r) => r.similarity >= similarityThreshold)
+      .map((r) => r.frame_id);
+    setSelectedFrames(new Set(framesAboveThreshold));
+  }, [results, similarityThreshold]);
 
   const toggleSelectionMode = useCallback(() => {
     setSelectionMode((prev) => {
@@ -290,6 +302,9 @@ export function SearchClient({ projectId }: SearchClientProps) {
           onSelectionChange={handleSelectionChange}
           onSelectAll={handleSelectAll}
           onDeselectAll={handleDeselectAll}
+          similarityThreshold={similarityThreshold}
+          onThresholdChange={handleThresholdChange}
+          onSelectAboveThreshold={handleSelectAboveThreshold}
         />
       ) : null}
 
