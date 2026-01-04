@@ -123,12 +123,8 @@ function AnnotationCard({
     [isSelected, onSelectionChange]
   );
 
-  // Build the frame URL from s3_key or thumbnail
-  const imageUrl = annotation.frame_thumbnail_s3_key
-    ? `/api/storage/${annotation.frame_thumbnail_s3_key}`
-    : annotation.frame_s3_key
-      ? `/api/storage/${annotation.frame_s3_key}`
-      : null;
+  // Use presigned URL from API
+  const imageUrl = annotation.frame_thumbnail_url || annotation.frame_image_url;
 
   // Confidence color
   const getConfidenceColor = () => {

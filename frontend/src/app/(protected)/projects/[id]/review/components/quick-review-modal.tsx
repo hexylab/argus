@@ -113,11 +113,8 @@ export function QuickReviewModal({
     return null;
   }
 
-  const imageUrl = current.frame_thumbnail_s3_key
-    ? `/api/storage/${current.frame_thumbnail_s3_key}`
-    : current.frame_s3_key
-      ? `/api/storage/${current.frame_s3_key}`
-      : null;
+  // Use presigned URL from API - prefer full image for modal view
+  const imageUrl = current.frame_image_url || current.frame_thumbnail_url;
 
   const getConfidenceColor = () => {
     const confidence = current.confidence ?? 0;

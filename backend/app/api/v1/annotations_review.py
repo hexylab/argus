@@ -1,10 +1,13 @@
 """Annotation review API endpoints."""
 
+from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, status
+from pydantic import BaseModel
 
 from app.api.deps import Auth
+from app.core.storage import generate_presigned_download_url
 from app.crud.annotation import (
     bulk_approve_annotations as crud_bulk_approve,
 )
@@ -35,6 +38,75 @@ router = APIRouter(
 )
 
 
+class AnnotationWithFrameResponse(BaseModel):
+    """Annotation with frame information and presigned URLs for review."""
+
+    id: UUID
+    frame_id: UUID
+    label_id: UUID
+    bbox_x: float
+    bbox_y: float
+    bbox_width: float
+    bbox_height: float
+    segmentation: list[list[float]] | None = None
+    confidence: float | None = None
+    source: AnnotationSource
+    reviewed: bool
+    reviewed_by: UUID | None = None
+    reviewed_at: datetime | None = None
+    created_by: UUID
+    created_at: datetime
+    # Frame info
+    frame_number: int
+    frame_s3_key: str
+    frame_thumbnail_s3_key: str | None = None
+    frame_thumbnail_url: str | None = None
+    frame_image_url: str | None = None
+    video_id: UUID
+    # Label info
+    label_name: str
+    label_color: str
+
+
+def _annotation_to_response(
+    annotation: AnnotationWithFrame,
+) -> AnnotationWithFrameResponse:
+    """Convert AnnotationWithFrame to response with presigned URLs."""
+    thumbnail_url = None
+    if annotation.frame_thumbnail_s3_key:
+        thumbnail_url = generate_presigned_download_url(
+            annotation.frame_thumbnail_s3_key
+        )
+
+    image_url = generate_presigned_download_url(annotation.frame_s3_key)
+
+    return AnnotationWithFrameResponse(
+        id=annotation.id,
+        frame_id=annotation.frame_id,
+        label_id=annotation.label_id,
+        bbox_x=annotation.bbox_x,
+        bbox_y=annotation.bbox_y,
+        bbox_width=annotation.bbox_width,
+        bbox_height=annotation.bbox_height,
+        segmentation=annotation.segmentation,
+        confidence=annotation.confidence,
+        source=annotation.source,
+        reviewed=annotation.reviewed,
+        reviewed_by=annotation.reviewed_by,
+        reviewed_at=annotation.reviewed_at,
+        created_by=annotation.created_by,
+        created_at=annotation.created_at,
+        frame_number=annotation.frame_number,
+        frame_s3_key=annotation.frame_s3_key,
+        frame_thumbnail_s3_key=annotation.frame_thumbnail_s3_key,
+        frame_thumbnail_url=thumbnail_url,
+        frame_image_url=image_url,
+        video_id=annotation.video_id,
+        label_name=annotation.label_name,
+        label_color=annotation.label_color,
+    )
+
+
 def _verify_project_ownership(
     client: Auth,
     project_id: UUID,
@@ -50,7 +122,7 @@ def _verify_project_ownership(
         ) from e
 
 
-@router.get("", response_model=list[AnnotationWithFrame])
+@router.get("", response_model=list[AnnotationWithFrameResponse])
 async def list_project_annotations(
     project_id: UUID,
     auth: Auth,
@@ -68,19 +140,20 @@ async def list_project_annotations(
     video_id: UUID | None = Query(None, description="Filter by video ID"),
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(100, ge=1, le=500, description="Maximum number of records"),
-) -> list[AnnotationWithFrame]:
+) -> list[AnnotationWithFrameResponse]:
     """
     List all annotations for a project with filtering options.
 
     The user must own the project.
     Results are ordered by confidence (low to high for easy review).
+    Returns presigned URLs for frame images.
     """
     owner_id = UUID(auth.user.sub)
 
     # Verify project ownership
     _verify_project_ownership(auth, project_id, owner_id)
 
-    return crud_get_annotations(
+    annotations = crud_get_annotations(
         auth.client,
         project_id,
         source=source,
@@ -92,6 +165,8 @@ async def list_project_annotations(
         skip=skip,
         limit=limit,
     )
+
+    return [_annotation_to_response(a) for a in annotations]
 
 
 @router.get("/stats", response_model=AnnotationReviewStats)
