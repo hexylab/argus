@@ -1,6 +1,6 @@
 """Search API endpoints for semantic frame search."""
 
-from typing import TYPE_CHECKING
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
@@ -15,20 +15,20 @@ from app.crud.project import get_project as crud_get_project
 from app.crud.video import VideoNotFoundError
 from app.crud.video import get_video as crud_get_video
 
-if TYPE_CHECKING:
-    import numpy as np
-    from numpy.typing import NDArray
 
-
-def _extract_text_embedding(query: str) -> "NDArray[np.float32]":
+def _extract_text_embedding(query: str) -> Any:
     """Extract text embedding using SigLIP 2.
 
     This function uses lazy import to avoid loading ML dependencies
     at module import time.
+
+    Returns:
+        NDArray[np.float32] of shape (768,) containing the text embedding.
     """
     from app.ml.siglip.embeddings import extract_text_embeddings
 
     return extract_text_embeddings([query])[0]
+
 
 router = APIRouter(
     prefix="/projects/{project_id}/search",
