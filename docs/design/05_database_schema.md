@@ -272,8 +272,8 @@ CREATE TABLE frames (
 );
 
 CREATE INDEX idx_frames_video ON frames(video_id);
-CREATE INDEX idx_frames_embedding ON frames USING ivfflat (embedding vector_cosine_ops)
-    WITH (lists = 100);  -- 100万フレームまで対応
+CREATE INDEX idx_frames_embedding_hnsw ON frames USING hnsw (embedding vector_cosine_ops)
+    WITH (m = 16, ef_construction = 64);  -- HNSW: 高速クエリ、事前学習データ不要
 
 -- RLS
 ALTER TABLE frames ENABLE ROW LEVEL SECURITY;
@@ -489,9 +489,12 @@ RETURNS TABLE (
     frame_id UUID,
     video_id UUID,
     frame_number INTEGER,
+    s3_key TEXT,
     similarity FLOAT
 )
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
     RETURN QUERY
@@ -499,9 +502,10 @@ BEGIN
         f.id,
         f.video_id,
         f.frame_number,
-        1 - (f.embedding <=> query_embedding) AS similarity
-    FROM frames f
-    JOIN videos v ON v.id = f.video_id
+        f.s3_key,
+        (1 - (f.embedding <=> query_embedding))::FLOAT AS similarity
+    FROM public.frames f
+    JOIN public.videos v ON v.id = f.video_id
     WHERE v.project_id = project_id_filter
     AND f.embedding IS NOT NULL
     ORDER BY f.embedding <=> query_embedding
@@ -509,6 +513,8 @@ BEGIN
 END;
 $$;
 ```
+
+> **Note**: `SECURITY DEFINER` を使用して RLS を回避。呼び出し側で project_id の認可チェックが必要。
 
 ## マイグレーション戦略
 
