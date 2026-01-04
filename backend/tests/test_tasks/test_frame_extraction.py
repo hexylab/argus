@@ -178,6 +178,7 @@ class TestExtractFramesTask:
             "updated_at": datetime.now(tz=UTC).isoformat(),
         }
 
+    @patch("app.tasks.embedding_extraction.extract_embeddings")
     @patch("app.tasks.frame_extraction.shutil")
     @patch("app.tasks.frame_extraction.create_frames_bulk")
     @patch("app.tasks.frame_extraction.update_video")
@@ -202,6 +203,7 @@ class TestExtractFramesTask:
         mock_update_video: MagicMock,
         mock_create_frames: MagicMock,
         mock_shutil: MagicMock,
+        mock_extract_embeddings: MagicMock,
     ) -> None:
         """Test successful frame extraction."""
         from app.tasks.frame_extraction import extract_frames
@@ -270,6 +272,9 @@ class TestExtractFramesTask:
         mock_update_video.assert_called()
         update_call = mock_update_video.call_args
         assert update_call[0][3].status == VideoStatus.READY
+
+        # Verify embedding extraction was queued
+        mock_extract_embeddings.delay.assert_called_once_with(video_id, project_id)
 
         # Note: rmtree is called in finally block only if temp_dir exists
         # Since we're mocking, the actual temp dir doesn't exist
