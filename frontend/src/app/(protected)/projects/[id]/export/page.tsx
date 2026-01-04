@@ -125,9 +125,9 @@ export default async function ExportPage({ params }: ExportPageProps) {
               </p>
             </div>
           </div>
-          <p className="max-w-xl text-muted-foreground">
-            アノテーションデータを機械学習フレームワークで利用可能な形式でエクスポートします。
-            COCO または YOLO フォーマットを選択してください。
+          <p className="text-muted-foreground">
+            アノテーションデータを機械学習フレームワークで利用可能な形式でエクスポートします。COCO
+            または YOLO フォーマットを選択してください。
           </p>
         </div>
 
