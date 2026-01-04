@@ -11,6 +11,9 @@ interface ReviewGridProps {
   projectId: string;
   selectedIds: Set<string>;
   onSelectionChange: (id: string, selected: boolean) => void;
+  onApprove: (id: string) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+  onOpenQuickReview: (index: number) => void;
 }
 
 export function ReviewGrid({
@@ -18,6 +21,9 @@ export function ReviewGrid({
   projectId,
   selectedIds,
   onSelectionChange,
+  onApprove,
+  onDelete,
+  onOpenQuickReview,
 }: ReviewGridProps) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
@@ -31,6 +37,9 @@ export function ReviewGrid({
           onSelectionChange={(selected) =>
             onSelectionChange(annotation.id, selected)
           }
+          onApprove={() => onApprove(annotation.id)}
+          onDelete={() => onDelete(annotation.id)}
+          onOpenQuickReview={() => onOpenQuickReview(index)}
         />
       ))}
     </div>
@@ -43,6 +52,9 @@ interface AnnotationCardProps {
   index: number;
   isSelected: boolean;
   onSelectionChange: (selected: boolean) => void;
+  onApprove: () => Promise<void>;
+  onDelete: () => Promise<void>;
+  onOpenQuickReview: () => void;
 }
 
 function AnnotationCard({
@@ -51,8 +63,45 @@ function AnnotationCard({
   index,
   isSelected,
   onSelectionChange,
+  onApprove,
+  onDelete,
+  onOpenQuickReview,
 }: AnnotationCardProps) {
   const [imageError, setImageError] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const handleApprove = useCallback(
+    async (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (isProcessing || annotation.reviewed) return;
+      setIsProcessing(true);
+      await onApprove();
+      setIsProcessing(false);
+    },
+    [isProcessing, annotation.reviewed, onApprove]
+  );
+
+  const handleDelete = useCallback(
+    async (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (isProcessing) return;
+      setIsProcessing(true);
+      await onDelete();
+      setIsProcessing(false);
+    },
+    [isProcessing, onDelete]
+  );
+
+  const handleDoubleClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      onOpenQuickReview();
+    },
+    [onOpenQuickReview]
+  );
 
   const handleCardClick = useCallback(
     (e: React.MouseEvent) => {
@@ -99,6 +148,7 @@ function AnnotationCard({
   return (
     <div
       onClick={handleCardClick}
+      onDoubleClick={handleDoubleClick}
       className={cn(
         "group relative rounded-xl overflow-hidden cursor-pointer",
         "border-2 transition-all duration-200",
@@ -108,7 +158,8 @@ function AnnotationCard({
           : cn(
               "border-border/50 hover:border-border",
               getConfidenceBorderColor()
-            )
+            ),
+        isProcessing && "opacity-50 pointer-events-none"
       )}
       style={{
         animationDelay: `${index * 30}ms`,
@@ -247,25 +298,88 @@ function AnnotationCard({
           <div className="absolute inset-0 bg-gradient-to-br from-primary/25 via-primary/15 to-transparent pointer-events-none" />
         ) : null}
 
-        {/* Hover overlay */}
+        {/* Hover overlay with inline actions */}
         <div
           className={cn(
-            "absolute inset-0 flex items-center justify-center gap-2",
-            "bg-gradient-to-t from-black/70 via-black/40 to-transparent",
+            "absolute inset-0 flex flex-col items-center justify-center gap-2",
+            "bg-gradient-to-t from-black/80 via-black/50 to-black/30",
             "opacity-0 transition-opacity duration-200",
             "group-hover:opacity-100"
           )}
         >
+          {/* Action buttons */}
+          <div className="flex items-center gap-2">
+            {/* Approve button */}
+            {!annotation.reviewed ? (
+              <button
+                type="button"
+                onClick={handleApprove}
+                disabled={isProcessing}
+                className={cn(
+                  "flex items-center justify-center size-10 rounded-full",
+                  "bg-emerald-600 hover:bg-emerald-500 text-white",
+                  "transition-all hover:scale-110",
+                  "shadow-lg"
+                )}
+                title="承認"
+              >
+                <svg
+                  className="size-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2.5}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M4.5 12.75l6 6 9-13.5"
+                  />
+                </svg>
+              </button>
+            ) : null}
+
+            {/* Delete button */}
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={isProcessing}
+              className={cn(
+                "flex items-center justify-center size-10 rounded-full",
+                "bg-red-600 hover:bg-red-500 text-white",
+                "transition-all hover:scale-110",
+                "shadow-lg"
+              )}
+              title="削除"
+            >
+              <svg
+                className="size-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
+                />
+              </svg>
+            </button>
+          </div>
+
+          {/* Edit link */}
           <Link
             href={`/projects/${projectId}/videos/${annotation.video_id}/frames/${annotation.frame_id}`}
             className={cn(
-              "flex items-center gap-2 px-3 py-1.5 rounded-full",
+              "flex items-center gap-1.5 px-3 py-1 rounded-full mt-1",
               "bg-white/20 backdrop-blur-sm border border-white/30",
-              "hover:bg-white/30 transition-colors"
+              "hover:bg-white/30 transition-colors",
+              "text-white text-xs font-medium"
             )}
           >
             <svg
-              className="size-4 text-white"
+              className="size-3.5"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -277,7 +391,7 @@ function AnnotationCard({
                 d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10"
               />
             </svg>
-            <span className="text-white text-xs font-medium">編集</span>
+            詳細編集
           </Link>
         </div>
       </div>

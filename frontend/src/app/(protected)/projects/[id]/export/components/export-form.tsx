@@ -152,6 +152,7 @@ function ImageIcon({ className }: { className?: string }) {
 export function ExportForm({ projectId, projectName }: ExportFormProps) {
   const [format, setFormat] = useState<ExportFormat>("coco");
   const [includeImages, setIncludeImages] = useState(false);
+  const [reviewedOnly, setReviewedOnly] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
   const [progressPercent, setProgressPercent] = useState(0);
@@ -210,7 +211,7 @@ export function ExportForm({ projectId, projectName }: ExportFormProps) {
       if (format === "coco") {
         setProgress("COCOデータを取得中...");
         setProgressPercent(5);
-        const result = await exportCOCOAction(projectId);
+        const result = await exportCOCOAction(projectId, reviewedOnly);
 
         if (result.error) {
           setError(result.error);
@@ -243,7 +244,7 @@ export function ExportForm({ projectId, projectName }: ExportFormProps) {
       } else {
         setProgress("YOLOデータを取得中...");
         setProgressPercent(5);
-        const result = await exportYOLOAction(projectId);
+        const result = await exportYOLOAction(projectId, reviewedOnly);
 
         if (result.error) {
           setError(result.error);
@@ -431,42 +432,93 @@ export function ExportForm({ projectId, projectName }: ExportFormProps) {
           </p>
         </div>
 
-        <div
-          className={`
-            rounded-2xl border-2 p-5 transition-all duration-200
-            ${includeImages ? "border-foreground/20 bg-foreground/[0.02]" : "border-border"}
-          `}
-        >
-          <Label
-            htmlFor="include-images"
-            className="flex cursor-pointer items-start gap-4"
+        <div className="space-y-4">
+          {/* Reviewed only option */}
+          <div
+            className={`
+              rounded-2xl border-2 p-5 transition-all duration-200
+              ${reviewedOnly ? "border-foreground/20 bg-foreground/[0.02]" : "border-border"}
+            `}
           >
-            <div className="pt-0.5">
-              <Checkbox
-                id="include-images"
-                checked={includeImages}
-                onCheckedChange={(checked: boolean) =>
-                  setIncludeImages(checked)
-                }
-                className="size-5"
-              />
-            </div>
-            <div className="flex-1 space-y-1.5">
-              <div className="flex items-center gap-2.5">
-                <ImageIcon className="size-5 text-muted-foreground" />
-                <span className="font-medium text-foreground">
-                  画像を含める
-                </span>
-                <span className="rounded-md bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
-                  ZIP
-                </span>
+            <Label
+              htmlFor="reviewed-only"
+              className="flex cursor-pointer items-start gap-4"
+            >
+              <div className="pt-0.5">
+                <Checkbox
+                  id="reviewed-only"
+                  checked={reviewedOnly}
+                  onCheckedChange={(checked: boolean) =>
+                    setReviewedOnly(checked)
+                  }
+                  className="size-5"
+                />
               </div>
-              <p className="text-sm leading-relaxed text-muted-foreground">
-                アノテーションデータと一緒にフレーム画像もダウンロードします。
-                画像数が多い場合は時間がかかる場合があります。
-              </p>
-            </div>
-          </Label>
+              <div className="flex-1 space-y-1.5">
+                <div className="flex items-center gap-2.5">
+                  <svg
+                    className="size-5 text-emerald-500"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                  <span className="font-medium text-foreground">
+                    レビュー済みのみエクスポート
+                  </span>
+                </div>
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  承認済みのアノテーションのみをエクスポートします。
+                  未レビューのアノテーションは除外されます。
+                </p>
+              </div>
+            </Label>
+          </div>
+
+          {/* Include images option */}
+          <div
+            className={`
+              rounded-2xl border-2 p-5 transition-all duration-200
+              ${includeImages ? "border-foreground/20 bg-foreground/[0.02]" : "border-border"}
+            `}
+          >
+            <Label
+              htmlFor="include-images"
+              className="flex cursor-pointer items-start gap-4"
+            >
+              <div className="pt-0.5">
+                <Checkbox
+                  id="include-images"
+                  checked={includeImages}
+                  onCheckedChange={(checked: boolean) =>
+                    setIncludeImages(checked)
+                  }
+                  className="size-5"
+                />
+              </div>
+              <div className="flex-1 space-y-1.5">
+                <div className="flex items-center gap-2.5">
+                  <ImageIcon className="size-5 text-muted-foreground" />
+                  <span className="font-medium text-foreground">
+                    画像を含める
+                  </span>
+                  <span className="rounded-md bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                    ZIP
+                  </span>
+                </div>
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  アノテーションデータと一緒にフレーム画像もダウンロードします。
+                  画像数が多い場合は時間がかかる場合があります。
+                </p>
+              </div>
+            </Label>
+          </div>
         </div>
       </section>
 

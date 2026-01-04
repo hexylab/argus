@@ -19,7 +19,10 @@ async function getAccessToken(): Promise<string | null> {
   return session?.access_token ?? null;
 }
 
-export async function exportCOCOAction(projectId: string): Promise<{
+export async function exportCOCOAction(
+  projectId: string,
+  reviewedOnly: boolean = false
+): Promise<{
   data?: COCOExport;
   error?: string;
 }> {
@@ -30,7 +33,7 @@ export async function exportCOCOAction(projectId: string): Promise<{
       return { error: "認証が必要です" };
     }
 
-    const data = await exportCOCO(accessToken, projectId);
+    const data = await exportCOCO(accessToken, projectId, reviewedOnly);
     return { data };
   } catch (error) {
     console.error("COCO export failed:", error);
@@ -38,7 +41,10 @@ export async function exportCOCOAction(projectId: string): Promise<{
   }
 }
 
-export async function exportYOLOAction(projectId: string): Promise<{
+export async function exportYOLOAction(
+  projectId: string,
+  reviewedOnly: boolean = false
+): Promise<{
   data?: YOLOExport;
   error?: string;
 }> {
@@ -49,7 +55,7 @@ export async function exportYOLOAction(projectId: string): Promise<{
       return { error: "認証が必要です" };
     }
 
-    const data = await exportYOLO(accessToken, projectId);
+    const data = await exportYOLO(accessToken, projectId, reviewedOnly);
     return { data };
   } catch (error) {
     console.error("YOLO export failed:", error);
