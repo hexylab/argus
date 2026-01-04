@@ -10,6 +10,7 @@ from app.api.v1 import (
     frames_router,
     labels_router,
     projects_router,
+    search_router,
     videos_router,
 )
 from app.core.config import get_settings
@@ -39,6 +40,7 @@ app.include_router(videos_router, prefix="/api/v1")
 app.include_router(frames_router, prefix="/api/v1")
 app.include_router(annotations_router, prefix="/api/v1")
 app.include_router(export_router, prefix="/api/v1")
+app.include_router(search_router, prefix="/api/v1")
 
 
 @app.get("/health")
