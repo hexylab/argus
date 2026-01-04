@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     siglip_model_name: str = "google/siglip2-base-patch16-256"
     siglip_device: str = "cuda"
 
+    # SAM 3 (GPU Worker only)
+    sam3_device: str = "cuda"
+
 
 @lru_cache
 def get_settings() -> Settings:
