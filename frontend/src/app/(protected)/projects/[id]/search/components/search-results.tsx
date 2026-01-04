@@ -300,7 +300,7 @@ function ResultsSkeleton() {
   );
 }
 
-// Threshold slider for bulk selection
+// Threshold selector for bulk selection - matches ConfidenceSlider design
 function ThresholdSelector({
   threshold,
   onThresholdChange,
@@ -312,102 +312,162 @@ function ThresholdSelector({
   onSelectAboveThreshold: () => void;
   countAboveThreshold: number;
 }) {
-  // Color based on threshold
-  const getThresholdColor = () => {
-    if (threshold >= 0.8) return "text-green-600 dark:text-green-400";
-    if (threshold >= 0.6) return "text-amber-600 dark:text-amber-400";
-    return "text-gray-600 dark:text-gray-400";
+  const percentage = Math.round(threshold * 100);
+
+  // Color based on threshold level (matching ConfidenceSlider)
+  const getColorClass = () => {
+    if (percentage >= 70) return "text-green-600 dark:text-green-400";
+    if (percentage >= 40) return "text-amber-600 dark:text-amber-400";
+    return "text-red-600 dark:text-red-400";
+  };
+
+  // Handle direct input
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    // Allow empty string for editing
+    if (value === "") return;
+
+    const numValue = parseFloat(value);
+    if (!isNaN(numValue)) {
+      // Clamp to valid range
+      const clampedValue = Math.max(0, Math.min(1, numValue));
+      onThresholdChange(clampedValue);
+    }
+  };
+
+  const handleInputBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    const value = parseFloat(e.target.value);
+    if (isNaN(value)) {
+      // Reset to current threshold if invalid
+      e.target.value = threshold.toFixed(3);
+    }
   };
 
   return (
     <div
       className={cn(
-        "flex items-center gap-3 px-3 py-2 rounded-lg",
-        "bg-muted/50 border border-border/50"
+        "rounded-xl border border-border/80 bg-card/50 overflow-hidden",
+        "animate-in fade-in slide-in-from-top-2 duration-200"
       )}
     >
-      <div className="flex items-center gap-2 min-w-0">
-        <svg
-          className="size-4 text-muted-foreground shrink-0"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={1.5}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M3 7.5L7.5 3m0 0L12 7.5M7.5 3v13.5m13.5 0L16.5 21m0 0L12 16.5m4.5 4.5V7.5"
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border/50 bg-muted/30">
+        <div className="flex items-center gap-2">
+          <div className="size-7 rounded-lg bg-gradient-to-br from-amber-500/20 to-green-500/20 flex items-center justify-center">
+            <svg
+              className="size-4 text-amber-600 dark:text-amber-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.5}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75"
+              />
+            </svg>
+          </div>
+          <span className="text-sm font-medium">類似度で一括選択</span>
+        </div>
+
+        {/* Direct input field */}
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-muted-foreground">≥</span>
+          <input
+            type="number"
+            min="0"
+            max="1"
+            step="0.001"
+            defaultValue={threshold.toFixed(3)}
+            key={threshold} // Reset when threshold changes from slider
+            onChange={handleInputChange}
+            onBlur={handleInputBlur}
+            className={cn(
+              "w-20 h-8 px-2 rounded-md text-center font-mono text-sm font-semibold",
+              "border border-border/80 bg-background",
+              "focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary",
+              "transition-all duration-150",
+              "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+              getColorClass()
+            )}
           />
-        </svg>
-        <span className="text-xs text-muted-foreground whitespace-nowrap">
-          類似度閾値
-        </span>
+        </div>
       </div>
 
-      <div className="flex items-center gap-2 flex-1 min-w-0">
-        <input
-          type="range"
-          min="0"
-          max="1"
-          step="0.01"
-          value={threshold}
-          onChange={(e) => onThresholdChange(parseFloat(e.target.value))}
-          className={cn(
-            "w-full h-1.5 rounded-full appearance-none cursor-pointer",
-            "bg-gradient-to-r from-gray-300 via-amber-400 to-green-500",
-            "[&::-webkit-slider-thumb]:appearance-none",
-            "[&::-webkit-slider-thumb]:size-3.5",
-            "[&::-webkit-slider-thumb]:rounded-full",
-            "[&::-webkit-slider-thumb]:bg-white",
-            "[&::-webkit-slider-thumb]:border-2",
-            "[&::-webkit-slider-thumb]:border-primary",
-            "[&::-webkit-slider-thumb]:shadow-md",
-            "[&::-webkit-slider-thumb]:cursor-pointer",
-            "[&::-webkit-slider-thumb]:transition-transform",
-            "[&::-webkit-slider-thumb]:hover:scale-110"
-          )}
-        />
-        <span
-          className={cn(
-            "text-sm font-mono font-semibold tabular-nums w-12 text-right",
-            getThresholdColor()
-          )}
-        >
-          {threshold.toFixed(2)}
-        </span>
-      </div>
+      {/* Slider section */}
+      <div className="px-4 py-4 space-y-3">
+        {/* Custom slider track (matching ConfidenceSlider style) */}
+        <div className="relative">
+          <div className="relative h-2 rounded-full bg-gradient-to-r from-red-500/20 via-amber-500/20 to-green-500/20">
+            {/* Filled portion */}
+            <div
+              className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-red-500 via-amber-500 to-green-500"
+              style={{ width: `${percentage}%` }}
+            />
+            {/* Slider input */}
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={percentage}
+              onChange={(e) =>
+                onThresholdChange(parseInt(e.target.value) / 100)
+              }
+              className={cn(
+                "absolute inset-0 w-full h-full appearance-none bg-transparent cursor-pointer",
+                "[&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:size-4",
+                "[&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white",
+                "[&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-primary",
+                "[&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:cursor-grab",
+                "[&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:hover:scale-110",
+                "[&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:size-4",
+                "[&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-white",
+                "[&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-primary",
+                "[&::-moz-range-thumb]:shadow-md [&::-moz-range-thumb]:cursor-grab"
+              )}
+            />
+          </div>
+        </div>
 
-      <Button
-        variant="secondary"
-        size="sm"
-        onClick={onSelectAboveThreshold}
-        disabled={countAboveThreshold === 0}
-        className="h-7 text-xs gap-1.5 shrink-0"
-      >
-        <svg
-          className="size-3.5"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-          />
-        </svg>
-        <span>一括選択</span>
-        <span
-          className={cn(
-            "px-1 py-0.5 rounded text-[10px] font-bold",
-            "bg-primary/10 text-primary tabular-nums"
-          )}
-        >
-          {countAboveThreshold}
-        </span>
-      </Button>
+        {/* Action row */}
+        <div className="flex items-center justify-between gap-4">
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            類似度{" "}
+            <span className={cn("font-semibold", getColorClass())}>
+              {threshold.toFixed(3)}
+            </span>{" "}
+            以上のフレームを選択
+          </p>
+
+          {/* Bulk select button - prominent gradient style */}
+          <Button
+            onClick={onSelectAboveThreshold}
+            disabled={countAboveThreshold === 0}
+            className={cn(
+              "gap-2 px-4 shadow-md",
+              "bg-gradient-to-r from-primary to-primary/90",
+              "hover:from-primary/90 hover:to-primary/80",
+              "disabled:from-muted disabled:to-muted disabled:text-muted-foreground"
+            )}
+          >
+            <svg
+              className="size-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            <span className="font-medium">{countAboveThreshold} 件を選択</span>
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
