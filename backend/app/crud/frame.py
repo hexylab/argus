@@ -3,9 +3,11 @@
 from typing import Any
 from uuid import UUID
 
+import numpy as np
+from numpy.typing import NDArray
 from supabase import Client
 
-from app.models.frame import Frame, FrameCreate
+from app.models.frame import Frame, FrameCreate, FrameSimilarityResult
 
 
 class FrameNotFoundError(Exception):
@@ -181,3 +183,61 @@ def delete_frames_by_video(client: Client, video_id: UUID) -> int:
     result = client.table("frames").delete().eq("video_id", str(video_id)).execute()
 
     return len(result.data) if result.data else 0
+
+
+def search_similar_frames(
+    client: Client,
+    query_embedding: NDArray[np.float32],
+    project_id: UUID,
+    limit: int = 100,
+) -> list[FrameSimilarityResult]:
+    """
+    Search for frames similar to a query embedding.
+
+    Uses the search_similar_frames PostgreSQL function with HNSW index
+    for efficient similarity search.
+
+    Args:
+        client: Supabase client instance.
+        query_embedding: Query embedding vector (768 dimensions).
+        project_id: UUID of the project to search within.
+        limit: Maximum number of results to return.
+
+    Returns:
+        List of similar frames with similarity scores (0-1, higher is more similar).
+    """
+    # Convert numpy array to list for JSON serialization
+    embedding_list = query_embedding.tolist()
+
+    result = client.rpc(
+        "search_similar_frames",
+        {
+            "query_embedding": embedding_list,
+            "project_id_filter": str(project_id),
+            "limit_count": limit,
+        },
+    ).execute()
+
+    rows: list[dict[str, Any]] = result.data  # type: ignore[assignment]
+    return [FrameSimilarityResult(**row) for row in rows]
+
+
+def update_frame_embedding(
+    client: Client,
+    frame_id: UUID,
+    embedding: NDArray[np.float32],
+) -> None:
+    """
+    Update the embedding for a frame.
+
+    Args:
+        client: Supabase client instance.
+        frame_id: UUID of the frame.
+        embedding: Embedding vector (768 dimensions).
+    """
+    # Convert numpy array to list for JSON serialization
+    embedding_list = embedding.tolist()
+
+    client.table("frames").update({"embedding": embedding_list}).eq(
+        "id", str(frame_id)
+    ).execute()
