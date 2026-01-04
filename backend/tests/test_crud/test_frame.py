@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from unittest.mock import MagicMock
 from uuid import uuid4
 
+import numpy as np
 import pytest
 
 from app.crud.frame import (
@@ -14,6 +15,8 @@ from app.crud.frame import (
     delete_frames_by_video,
     get_frame,
     get_frames,
+    search_similar_frames,
+    update_frame_embedding,
 )
 from app.models.frame import FrameCreate
 
@@ -341,3 +344,131 @@ class TestDeleteFramesByVideo:
         count = delete_frames_by_video(mock_client, video_id)
 
         assert count == 0
+
+
+class TestSearchSimilarFrames:
+    """Tests for search_similar_frames."""
+
+    def test_search_returns_results(self) -> None:
+        """Test searching for similar frames returns results."""
+        project_id = uuid4()
+        frame_id_1 = uuid4()
+        frame_id_2 = uuid4()
+        video_id = uuid4()
+
+        # Create a 768-dimension query embedding
+        query_embedding = np.random.randn(768).astype(np.float32)
+
+        mock_client = MagicMock()
+        mock_result = MagicMock()
+        mock_result.data = [
+            {
+                "frame_id": str(frame_id_1),
+                "video_id": str(video_id),
+                "frame_number": 10,
+                "s3_key": "test/frame_10.jpg",
+                "similarity": 0.95,
+            },
+            {
+                "frame_id": str(frame_id_2),
+                "video_id": str(video_id),
+                "frame_number": 25,
+                "s3_key": "test/frame_25.jpg",
+                "similarity": 0.87,
+            },
+        ]
+        mock_client.rpc.return_value.execute.return_value = mock_result
+
+        results = search_similar_frames(
+            mock_client, query_embedding, project_id, limit=10
+        )
+
+        assert len(results) == 2
+        assert results[0].frame_id == frame_id_1
+        assert results[0].similarity == 0.95
+        assert results[1].frame_id == frame_id_2
+        assert results[1].similarity == 0.87
+
+        # Verify RPC was called with correct parameters
+        mock_client.rpc.assert_called_once_with(
+            "search_similar_frames",
+            {
+                "query_embedding": query_embedding.tolist(),
+                "project_id_filter": str(project_id),
+                "limit_count": 10,
+            },
+        )
+
+    def test_search_empty_results(self) -> None:
+        """Test searching when no similar frames found."""
+        project_id = uuid4()
+        query_embedding = np.random.randn(768).astype(np.float32)
+
+        mock_client = MagicMock()
+        mock_result = MagicMock()
+        mock_result.data = []
+        mock_client.rpc.return_value.execute.return_value = mock_result
+
+        results = search_similar_frames(mock_client, query_embedding, project_id)
+
+        assert results == []
+
+    def test_search_default_limit(self) -> None:
+        """Test that default limit of 100 is used."""
+        project_id = uuid4()
+        query_embedding = np.random.randn(768).astype(np.float32)
+
+        mock_client = MagicMock()
+        mock_result = MagicMock()
+        mock_result.data = []
+        mock_client.rpc.return_value.execute.return_value = mock_result
+
+        search_similar_frames(mock_client, query_embedding, project_id)
+
+        # Check the limit_count in the RPC call
+        call_args = mock_client.rpc.call_args
+        assert call_args[0][1]["limit_count"] == 100
+
+
+class TestUpdateFrameEmbedding:
+    """Tests for update_frame_embedding."""
+
+    def test_update_embedding(self) -> None:
+        """Test updating a frame's embedding."""
+        frame_id = uuid4()
+        embedding = np.random.randn(768).astype(np.float32)
+
+        mock_client = MagicMock()
+        mock_result = MagicMock()
+        mock_result.data = [{"id": str(frame_id)}]
+        mock_client.table.return_value.update.return_value.eq.return_value.execute.return_value = mock_result
+
+        update_frame_embedding(mock_client, frame_id, embedding)
+
+        # Verify update was called with embedding as list
+        mock_client.table.assert_called_once_with("frames")
+        mock_client.table.return_value.update.assert_called_once()
+        update_call_args = mock_client.table.return_value.update.call_args
+        assert "embedding" in update_call_args[0][0]
+        assert update_call_args[0][0]["embedding"] == embedding.tolist()
+
+    def test_update_embedding_converts_numpy_to_list(self) -> None:
+        """Test that numpy array is converted to list for JSON serialization."""
+        frame_id = uuid4()
+        embedding = np.array([0.1, 0.2, 0.3], dtype=np.float32)
+
+        mock_client = MagicMock()
+        mock_result = MagicMock()
+        mock_result.data = []
+        mock_client.table.return_value.update.return_value.eq.return_value.execute.return_value = mock_result
+
+        update_frame_embedding(mock_client, frame_id, embedding)
+
+        update_call_args = mock_client.table.return_value.update.call_args
+        embedding_value = update_call_args[0][0]["embedding"]
+
+        # Should be a list, not a numpy array
+        assert isinstance(embedding_value, list)
+        assert len(embedding_value) == 3
+        # Use approximate comparison due to float32 precision
+        np.testing.assert_allclose(embedding_value, [0.1, 0.2, 0.3], rtol=1e-6)
