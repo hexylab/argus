@@ -68,6 +68,24 @@ function FolderIcon({ className }: { className?: string }) {
   );
 }
 
+function SearchIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={1.5}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
+      />
+    </svg>
+  );
+}
+
 function ExportIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -234,6 +252,12 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
         </div>
 
         <div className="flex items-center gap-2">
+          <Link href={`/projects/${projectId}/search`}>
+            <Button variant="outline" className="gap-2">
+              <SearchIcon className="size-4" />
+              検索
+            </Button>
+          </Link>
           <Link href={`/projects/${projectId}/export`}>
             <Button variant="outline" className="gap-2">
               <ExportIcon className="size-4" />
