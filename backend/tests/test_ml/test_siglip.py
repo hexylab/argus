@@ -258,9 +258,7 @@ class TestModelLoader:
             # Clear lru_cache
             siglip_model_module.get_siglip_model.cache_clear()
 
-            with patch.object(
-                siglip_model_module, "get_settings"
-            ) as mock_get_settings:
+            with patch.object(siglip_model_module, "get_settings") as mock_get_settings:
                 # Setup mocks
                 mock_settings = MagicMock()
                 mock_settings.siglip_model_name = "google/siglip2-base-patch16-256"
@@ -308,9 +306,7 @@ class TestModelLoader:
             # Clear lru_cache
             siglip_model_module.get_siglip_processor.cache_clear()
 
-            with patch.object(
-                siglip_model_module, "get_settings"
-            ) as mock_get_settings:
+            with patch.object(siglip_model_module, "get_settings") as mock_get_settings:
                 # Setup mocks
                 mock_settings = MagicMock()
                 mock_settings.siglip_model_name = "google/siglip2-base-patch16-256"
