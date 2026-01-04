@@ -290,6 +290,12 @@ def extract_frames(
 
         logger.info(f"Frame extraction completed for video {video_id}")
 
+        # Queue embedding extraction task on GPU worker
+        from app.tasks.embedding_extraction import extract_embeddings
+
+        extract_embeddings.delay(video_id, project_id)
+        logger.info(f"Queued embedding extraction for video {video_id}")
+
         return {
             "video_id": video_id,
             "frame_count": len(created_frames),

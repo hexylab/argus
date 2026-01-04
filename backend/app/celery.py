@@ -10,7 +10,10 @@ celery_app = Celery(
     "argus",
     broker=settings.redis_url,
     backend=settings.redis_url,
-    include=["app.tasks.frame_extraction"],
+    include=[
+        "app.tasks.frame_extraction",
+        "app.tasks.embedding_extraction",
+    ],
 )
 
 celery_app.conf.update(
