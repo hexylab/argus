@@ -1,6 +1,6 @@
 """Search API endpoints for semantic frame search."""
 
-from typing import Any
+import logging
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
@@ -15,19 +15,46 @@ from app.crud.project import get_project as crud_get_project
 from app.crud.video import VideoNotFoundError
 from app.crud.video import get_video as crud_get_video
 
+logger = logging.getLogger(__name__)
 
-def _extract_text_embedding(query: str) -> Any:
-    """Extract text embedding using SigLIP 2.
+# Timeout for text embedding extraction (seconds)
+TEXT_EMBEDDING_TIMEOUT = 60
 
-    This function uses lazy import to avoid loading ML dependencies
-    at module import time.
+
+def _extract_text_embedding(query: str) -> list[float]:
+    """Extract text embedding using SigLIP 2 via Celery task.
+
+    This function sends the query to the siglip-worker (GPU) for processing
+    and waits for the result synchronously.
+
+    Args:
+        query: Text query to extract embedding for.
 
     Returns:
-        NDArray[np.float32] of shape (768,) containing the text embedding.
-    """
-    from app.ml.siglip.embeddings import extract_text_embeddings
+        List of floats representing the text embedding.
 
-    return extract_text_embeddings([query])[0]
+    Raises:
+        HTTPException: If embedding extraction fails or times out.
+    """
+    from app.tasks.embedding_extraction import extract_text_embedding
+
+    try:
+        # Call Celery task synchronously with timeout
+        result = extract_text_embedding.apply_async(args=[query])
+        embedding: list[float] = result.get(timeout=TEXT_EMBEDDING_TIMEOUT)
+        return embedding
+    except TimeoutError as e:
+        logger.error(f"Text embedding extraction timed out for query: {query}")
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="Text embedding extraction timed out",
+        ) from e
+    except Exception as e:
+        logger.exception(f"Text embedding extraction failed for query: {query}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to extract text embedding",
+        ) from e
 
 
 router = APIRouter(

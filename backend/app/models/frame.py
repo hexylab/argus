@@ -1,9 +1,11 @@
 """Frame models for video frames."""
 
+import json
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from app.models.base import BaseSchema
 
@@ -41,6 +43,19 @@ class Frame(FrameBase):
     video_id: UUID
     embedding: list[float] | None = None  # vector(768) as Python list
     created_at: datetime
+
+    @field_validator("embedding", mode="before")
+    @classmethod
+    def parse_embedding(cls, v: Any) -> list[float] | None:
+        """Parse embedding from string (pgvector returns as string via REST API)."""
+        if v is None:
+            return None
+        if isinstance(v, list):
+            return v
+        if isinstance(v, str):
+            parsed: list[float] = json.loads(v)
+            return parsed
+        return None  # Unsupported type, let Pydantic handle validation
 
 
 class FrameSimilarityResult(BaseSchema):
