@@ -17,6 +17,8 @@ export interface AnnotationWithFrame {
   frame_number: number;
   frame_s3_key: string;
   frame_thumbnail_s3_key: string | null;
+  frame_thumbnail_url: string | null;
+  frame_image_url: string | null;
   video_id: string;
   // Label info
   label_name: string;
