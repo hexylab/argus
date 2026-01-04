@@ -212,6 +212,27 @@ def download_object(s3_key: str, local_path: Path) -> None:
     )
 
 
+def download_object_bytes(s3_key: str) -> bytes:
+    """
+    Download an object from S3 and return its contents as bytes.
+
+    Args:
+        s3_key: The S3 object key.
+
+    Returns:
+        Object contents as bytes.
+    """
+    settings = get_settings()
+    client = get_storage_client()
+
+    response = client.get_object(
+        Bucket=settings.minio_bucket,
+        Key=s3_key,
+    )
+
+    return response["Body"].read()
+
+
 def upload_object(
     local_path: Path,
     s3_key: str,
