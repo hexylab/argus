@@ -77,3 +77,8 @@ supabase/.temp/
 *.tmp
 *.temp
 coverage/
+
+# ====================
+# Test datasets
+# ====================
+sample_dataset/
