@@ -13,6 +13,7 @@ celery_app = Celery(
     include=[
         "app.tasks.frame_extraction",
         "app.tasks.embedding_extraction",
+        "app.tasks.auto_annotation",
     ],
 )
 
