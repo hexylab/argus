@@ -43,7 +43,11 @@ class Frame(FrameBase):
     created_at: datetime
 
 
-class FrameWithEmbedding(Frame):
-    """Frame with embedding for similarity search results."""
+class FrameSimilarityResult(BaseSchema):
+    """Result from similarity search function."""
 
-    similarity: float | None = None
+    frame_id: UUID
+    video_id: UUID
+    frame_number: int
+    s3_key: str
+    similarity: float

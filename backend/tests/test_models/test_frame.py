@@ -6,7 +6,7 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from app.models.frame import Frame, FrameCreate, FrameUpdate, FrameWithEmbedding
+from app.models.frame import Frame, FrameCreate, FrameSimilarityResult, FrameUpdate
 
 
 class TestFrame:
@@ -133,41 +133,28 @@ class TestFrameUpdate:
         assert update.width is None
 
 
-class TestFrameWithEmbedding:
-    """Tests for FrameWithEmbedding model."""
+class TestFrameSimilarityResult:
+    """Tests for FrameSimilarityResult model."""
 
-    def test_with_similarity(self) -> None:
-        """Test frame with similarity score."""
-        now = datetime.now(tz=UTC)
-        frame = FrameWithEmbedding(
-            id=uuid4(),
+    def test_similarity_result(self) -> None:
+        """Test similarity search result."""
+        result = FrameSimilarityResult(
+            frame_id=uuid4(),
             video_id=uuid4(),
             frame_number=50,
-            timestamp_ms=1666,
             s3_key="frames/f50.jpg",
-            thumbnail_s3_key=None,
-            width=None,
-            height=None,
-            embedding=None,
-            created_at=now,
             similarity=0.95,
         )
-        assert frame.similarity == 0.95
+        assert result.similarity == 0.95
+        assert result.frame_number == 50
 
-    def test_without_similarity(self) -> None:
-        """Test frame without similarity score."""
-        now = datetime.now(tz=UTC)
-        frame = FrameWithEmbedding(
-            id=uuid4(),
+    def test_low_similarity(self) -> None:
+        """Test result with low similarity score."""
+        result = FrameSimilarityResult(
+            frame_id=uuid4(),
             video_id=uuid4(),
-            frame_number=50,
-            timestamp_ms=1666,
-            s3_key="frames/f50.jpg",
-            thumbnail_s3_key=None,
-            width=None,
-            height=None,
-            embedding=None,
-            created_at=now,
-            similarity=None,
+            frame_number=100,
+            s3_key="frames/f100.jpg",
+            similarity=0.15,
         )
-        assert frame.similarity is None
+        assert result.similarity == 0.15

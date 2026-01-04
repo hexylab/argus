@@ -8,7 +8,7 @@ from app.models.annotation import (
     BoundingBox,
 )
 from app.models.base import BaseSchema, SupabaseModel, TimestampMixin
-from app.models.frame import Frame, FrameCreate, FrameUpdate, FrameWithEmbedding
+from app.models.frame import Frame, FrameCreate, FrameSimilarityResult, FrameUpdate
 from app.models.label import Label, LabelCreate, LabelUpdate
 from app.models.project import (
     Project,
@@ -37,8 +37,8 @@ __all__ = [
     # Frame
     "Frame",
     "FrameCreate",
+    "FrameSimilarityResult",
     "FrameUpdate",
-    "FrameWithEmbedding",
     # Label
     "Label",
     "LabelCreate",
