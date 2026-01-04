@@ -80,6 +80,8 @@ services:
       # Model cache
       - HF_HOME=/models/.cache
       - TRANSFORMERS_CACHE=/models/.cache/transformers
+      # HuggingFace token for SAM3 model access (gated model)
+      - HF_TOKEN=${HF_TOKEN}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:

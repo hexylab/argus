@@ -81,7 +81,8 @@ RUN uv pip install --no-cache \
     portalocker \
     pycocotools \
     psutil \
-    accelerate>=0.34.0
+    accelerate>=0.34.0 \
+    decord
 
 # Install Transformers development version (required for SAM3 support)
 RUN uv pip install --no-cache git+https://github.com/huggingface/transformers.git
