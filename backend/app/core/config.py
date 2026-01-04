@@ -40,6 +40,10 @@ class Settings(BaseSettings):
     minio_bucket: str = "argus-videos"
     minio_use_ssl: bool = False
 
+    # SigLIP (GPU Worker only)
+    siglip_model_name: str = "google/siglip2-base-patch16-256"
+    siglip_device: str = "cuda"
+
 
 @lru_cache
 def get_settings() -> Settings:
