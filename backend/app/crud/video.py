@@ -31,6 +31,7 @@ def create_video(client: Client, data: VideoCreate) -> Video:
         "original_filename": data.original_filename,
         "s3_key": data.s3_key,
         "status": VideoStatus.UPLOADING.value,
+        "source_type": data.source_type.value,
     }
 
     if data.mime_type is not None:

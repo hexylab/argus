@@ -18,6 +18,13 @@ class VideoStatus(StrEnum):
     FAILED = "failed"
 
 
+class VideoSourceType(StrEnum):
+    """Video source type - video file or image set."""
+
+    VIDEO = "video"
+    IMAGE_SET = "image_set"
+
+
 class VideoMetadata(BaseSchema):
     """Video metadata stored as JSONB."""
 
@@ -43,6 +50,7 @@ class VideoBase(BaseSchema):
     status: VideoStatus = VideoStatus.UPLOADING
     error_message: str | None = None
     metadata: VideoMetadata = Field(default_factory=VideoMetadata)
+    source_type: VideoSourceType = VideoSourceType.VIDEO
 
 
 class VideoCreate(BaseSchema):
@@ -55,6 +63,7 @@ class VideoCreate(BaseSchema):
     mime_type: str | None = None
     file_size: int | None = Field(None, ge=0)
     metadata: dict[str, Any] | None = None
+    source_type: VideoSourceType = VideoSourceType.VIDEO
 
 
 class VideoUpdate(BaseSchema):
