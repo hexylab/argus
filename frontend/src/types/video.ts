@@ -1,4 +1,5 @@
 export type VideoStatus = "uploading" | "processing" | "ready" | "failed";
+export type VideoSourceType = "video" | "image_set";
 
 export interface VideoMetadata {
   codec?: string | null;
@@ -24,6 +25,7 @@ export interface Video {
   metadata: VideoMetadata;
   created_at: string;
   thumbnail_url: string | null;
+  source_type: VideoSourceType;
 }
 
 export interface UploadUrlRequest {

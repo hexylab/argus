@@ -9,6 +9,18 @@ from app.models.annotation import (
 )
 from app.models.base import BaseSchema, SupabaseModel, TimestampMixin
 from app.models.frame import Frame, FrameCreate, FrameSimilarityResult, FrameUpdate
+from app.models.import_job import (
+    ImportFormat,
+    ImportJob,
+    ImportJobCreate,
+    ImportJobUpdate,
+    ImportPreviewLabel,
+    ImportPreviewResponse,
+    ImportStatus,
+    ImportUploadUrlRequest,
+    ImportUploadUrlResponse,
+    StartImportRequest,
+)
 from app.models.label import Label, LabelCreate, LabelUpdate
 from app.models.project import (
     Project,
@@ -22,44 +34,50 @@ from app.models.video import (
     Video,
     VideoCreate,
     VideoMetadata,
+    VideoSourceType,
     VideoStatus,
     VideoUpdate,
 )
 
 __all__ = [
-    # Annotation
     "Annotation",
     "AnnotationCreate",
     "AnnotationSource",
     "AnnotationUpdate",
     "BaseSchema",
     "BoundingBox",
-    # Frame
     "Frame",
     "FrameCreate",
     "FrameSimilarityResult",
     "FrameUpdate",
-    # Label
+    "ImportFormat",
+    "ImportJob",
+    "ImportJobCreate",
+    "ImportJobUpdate",
+    "ImportPreviewLabel",
+    "ImportPreviewResponse",
+    "ImportStatus",
+    "ImportUploadUrlRequest",
+    "ImportUploadUrlResponse",
     "Label",
     "LabelCreate",
     "LabelUpdate",
-    # Profile
     "Profile",
     "ProfileCreate",
     "ProfilePreferences",
     "ProfileUpdate",
-    # Project
     "Project",
     "ProjectCreate",
     "ProjectSettings",
     "ProjectStatus",
     "ProjectUpdate",
+    "StartImportRequest",
     "SupabaseModel",
     "TimestampMixin",
-    # Video
     "Video",
     "VideoCreate",
     "VideoMetadata",
+    "VideoSourceType",
     "VideoStatus",
     "VideoUpdate",
 ]
