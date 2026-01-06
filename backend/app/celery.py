@@ -14,6 +14,7 @@ celery_app = Celery(
         "app.tasks.frame_extraction",
         "app.tasks.embedding_extraction",
         "app.tasks.auto_annotation",
+        "app.tasks.import_dataset",
     ],
 )
 
