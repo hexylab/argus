@@ -9,6 +9,7 @@ import {
   completeUpload,
   deleteVideo,
 } from "@/lib/api/videos";
+import { getLabels } from "@/lib/api/labels";
 import {
   getImportUploadUrl,
   previewImport as apiPreviewImport,
@@ -17,6 +18,7 @@ import {
 } from "@/lib/api/imports";
 import type { Project } from "@/types/project";
 import type { Video, UploadUrlResponse } from "@/types/video";
+import type { Label } from "@/types/label";
 import type {
   ImportFormat,
   ImportUploadUrlResponse,
@@ -69,6 +71,25 @@ export async function fetchVideos(projectId: string): Promise<{
   } catch (error) {
     console.error("Failed to fetch videos:", error);
     return { error: "映像の取得に失敗しました" };
+  }
+}
+
+export async function fetchLabels(projectId: string): Promise<{
+  labels?: Label[];
+  error?: string;
+}> {
+  try {
+    const accessToken = await getAccessToken();
+
+    if (!accessToken) {
+      return { error: "認証が必要です" };
+    }
+
+    const labels = await getLabels(accessToken, projectId);
+    return { labels };
+  } catch (error) {
+    console.error("Failed to fetch labels:", error);
+    return { error: "ラベルの取得に失敗しました" };
   }
 }
 
