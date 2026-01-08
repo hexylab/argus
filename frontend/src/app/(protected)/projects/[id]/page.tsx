@@ -4,8 +4,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { fetchProject, fetchVideos, fetchLabels } from "./actions";
 import { VideoList } from "./components/video-list";
-import { VideoUploader } from "./components/video-uploader";
-import { ImportButton } from "./components/import-button";
+import { DataUploader } from "./components/data-uploader";
 import { cn } from "@/lib/utils";
 
 interface ProjectPageProps {
@@ -271,7 +270,6 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
         </div>
 
         <div className="flex items-center gap-2">
-          <ImportButton projectId={projectId} existingLabels={labels} />
           <Link href={`/projects/${projectId}/review`}>
             <Button variant="outline" className="gap-2">
               <ReviewIcon className="size-4" />
@@ -308,15 +306,15 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
       {/* Divider */}
       <div className="border-t border-border" />
 
-      {/* Video Upload Section */}
+      {/* Data Upload Section */}
       <section className="space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <FilmIcon className="size-5 text-muted-foreground" />
             <div>
-              <h2 className="text-lg font-semibold tracking-tight">映像</h2>
+              <h2 className="text-lg font-semibold tracking-tight">データ</h2>
               <p className="text-sm text-muted-foreground">
-                アノテーションする映像をアップロード
+                映像またはデータセット（ZIP）をドラッグ＆ドロップ
               </p>
             </div>
           </div>
@@ -327,7 +325,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
           ) : null}
         </div>
 
-        <VideoUploader projectId={projectId} />
+        <DataUploader projectId={projectId} existingLabels={labels} />
       </section>
 
       {/* Video List Section */}

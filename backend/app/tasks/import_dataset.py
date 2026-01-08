@@ -267,23 +267,41 @@ def parse_yolo_annotations(
     image_paths: list[Path] = []
     annotations: list[dict[str, Any]] = []
 
+    logger.info(f"Found images directories: {images_dirs}")
+    logger.info(f"Found labels directories: {labels_dirs}")
+
     for images_dir in images_dirs:
-        for img_path in images_dir.iterdir():
-            if not is_image_file(img_path):
+        # Use rglob to recursively find all image files (handles subdirs like train/, val/)
+        for img_path in images_dir.rglob("*"):
+            if not img_path.is_file() or not is_image_file(img_path):
                 continue
 
             image_paths.append(img_path)
 
             # Find corresponding label file
             label_file = None
+
+            # Determine relative path from images directory
+            try:
+                relative_path = img_path.relative_to(images_dir)
+            except ValueError:
+                relative_path = Path(img_path.name)
+
             for labels_dir in labels_dirs:
+                # Try matching with same subdirectory structure (e.g., train/img.txt)
+                candidate = labels_dir / relative_path.with_suffix(".txt")
+                if candidate.exists():
+                    label_file = candidate
+                    break
+
+                # Try direct match (e.g., labels/img.txt)
                 candidate = labels_dir / f"{img_path.stem}.txt"
                 if candidate.exists():
                     label_file = candidate
                     break
 
             if not label_file:
-                # Try same directory
+                # Try same directory as image
                 candidate = img_path.with_suffix(".txt")
                 if candidate.exists():
                     label_file = candidate
@@ -297,19 +315,28 @@ def parse_yolo_annotations(
                             # YOLO format: center_x, center_y, width, height (normalized)
                             cx, cy, w, h = map(float, parts[1:5])
                             # Convert to x, y, width, height format
+                            # Clamp values to [0, 1] to handle floating point precision issues
+                            bbox_x = max(0.0, min(1.0, cx - w / 2))
+                            bbox_y = max(0.0, min(1.0, cy - h / 2))
+                            bbox_w = max(0.0, min(1.0 - bbox_x, w))
+                            bbox_h = max(0.0, min(1.0 - bbox_y, h))
                             annotations.append(
                                 {
                                     "image_filename": img_path.name,
                                     "category_name": category_map.get(
                                         class_id, f"class_{class_id}"
                                     ),
-                                    "bbox_x": cx - w / 2,
-                                    "bbox_y": cy - h / 2,
-                                    "bbox_width": w,
-                                    "bbox_height": h,
+                                    "bbox_x": bbox_x,
+                                    "bbox_y": bbox_y,
+                                    "bbox_width": bbox_w,
+                                    "bbox_height": bbox_h,
                                 }
                             )
 
+    logger.info(
+        f"YOLO parsing complete: {len(image_paths)} images, "
+        f"{len(annotations)} annotations, {len(category_map)} categories"
+    )
     return annotations, category_map, image_paths
 
 
@@ -675,6 +702,12 @@ def process_import(
         )
 
         logger.info(f"Import completed for job {import_job_id}")
+
+        # Queue embedding extraction task on GPU worker
+        from app.tasks.embedding_extraction import extract_embeddings
+
+        extract_embeddings.delay(str(video.id), project_id)
+        logger.info(f"Queued embedding extraction for imported image set {video.id}")
 
         return {
             "import_job_id": import_job_id,

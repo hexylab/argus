@@ -17,13 +17,24 @@ import type {
   DrawingRect,
 } from "@/types/annotation";
 
+// Normalized annotation from server (0-1 range coordinates)
+export interface NormalizedAnnotation {
+  id: string;
+  label_id: string;
+  bbox_x: number;
+  bbox_y: number;
+  bbox_width: number;
+  bbox_height: number;
+}
+
 interface AnnotationCanvasProps {
   imageUrl: string;
   initialWidth?: number;
   initialHeight?: number;
   labels: Label[];
-  initialAnnotations?: BoundingBoxData[];
+  normalizedAnnotations?: NormalizedAnnotation[];
   onChange?: (annotations: BoundingBoxData[]) => void;
+  onImageDimensionsChange?: (width: number, height: number) => void;
   selectedLabelId?: string | null;
 }
 
@@ -31,13 +42,34 @@ const MIN_SCALE = 0.1;
 const MAX_SCALE = 10;
 const SCALE_BY = 1.1;
 
+// Convert normalized annotation to pixel coordinates
+function convertToPixelCoords(
+  annotation: NormalizedAnnotation,
+  imageWidth: number,
+  imageHeight: number,
+  labels: Label[]
+): BoundingBoxData {
+  const label = labels.find((l) => l.id === annotation.label_id);
+  return {
+    id: annotation.id,
+    x: annotation.bbox_x * imageWidth,
+    y: annotation.bbox_y * imageHeight,
+    width: annotation.bbox_width * imageWidth,
+    height: annotation.bbox_height * imageHeight,
+    labelId: annotation.label_id,
+    labelName: label?.name ?? "Unknown",
+    labelColor: label?.color ?? "#808080",
+  };
+}
+
 export function AnnotationCanvas({
   imageUrl,
   initialWidth,
   initialHeight,
   labels,
-  initialAnnotations = [],
+  normalizedAnnotations = [],
   onChange,
+  onImageDimensionsChange,
   selectedLabelId,
 }: AnnotationCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -51,17 +83,20 @@ export function AnnotationCanvas({
     height: initialHeight ?? 0,
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [hasInitializedAnnotations, setHasInitializedAnnotations] =
+    useState(false);
 
-  // Annotation state with history
+  // Annotation state with history - start empty, will be populated after image loads
   const {
     annotations,
     setAnnotations,
+    resetAnnotations,
     pushHistory,
     undo,
     redo,
     canUndo,
     canRedo,
-  } = useAnnotationHistory(initialAnnotations);
+  } = useAnnotationHistory([]);
 
   // Notify parent of annotation changes
   useEffect(() => {
@@ -191,6 +226,20 @@ export function AnnotationCanvas({
       setImageSize({ width, height });
       setIsLoading(false);
 
+      // Notify parent of actual image dimensions
+      onImageDimensionsChange?.(width, height);
+
+      // Convert normalized annotations to pixel coordinates using actual image dimensions
+      if (!hasInitializedAnnotations && normalizedAnnotations.length > 0) {
+        const pixelAnnotations = normalizedAnnotations.map((a) =>
+          convertToPixelCoords(a, width, height, labels)
+        );
+        resetAnnotations(pixelAnnotations);
+        setHasInitializedAnnotations(true);
+      } else if (!hasInitializedAnnotations) {
+        setHasInitializedAnnotations(true);
+      }
+
       // Calculate scale to fit image in canvas with padding
       const padding = 40;
       const availableWidth = stageSize.width - padding * 2;
@@ -207,7 +256,15 @@ export function AnnotationCanvas({
       const centerY = (stageSize.height - height * fitScale) / 2;
       setPosition({ x: centerX, y: centerY });
     },
-    [stageSize.width, stageSize.height]
+    [
+      stageSize.width,
+      stageSize.height,
+      normalizedAnnotations,
+      labels,
+      hasInitializedAnnotations,
+      resetAnnotations,
+      onImageDimensionsChange,
+    ]
   );
 
   // Handle mouse wheel for zooming
