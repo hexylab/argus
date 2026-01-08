@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Dialog,
@@ -14,15 +14,16 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { cn } from "@/lib/utils";
 import {
+  requestUploadUrl,
+  markUploadComplete,
   requestImportUploadUrl,
   previewImport,
   startImport,
   getImportStatus,
 } from "../actions";
-import type { ImportFormat, ImportPreviewResponse } from "@/types/import";
+import type { ImportPreviewResponse } from "@/types/import";
 
 interface ExistingLabel {
   id: string;
@@ -30,95 +31,25 @@ interface ExistingLabel {
   color: string;
 }
 
-interface ImportDialogProps {
+interface UploadDialogProps {
   projectId: string;
   existingLabels: ExistingLabel[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
+  initialFile: File;
+  fileType: "video" | "zip";
 }
 
 type Step =
-  | "upload"
+  | "processing"
   | "preview"
   | "mapping"
   | "importing"
   | "complete"
   | "error";
 
-const STEPS: { key: Step; label: string }[] = [
-  { key: "upload", label: "アップロード" },
-  { key: "preview", label: "プレビュー" },
-  { key: "mapping", label: "マッピング" },
-];
-
-const FORMAT_OPTIONS: {
-  value: ImportFormat;
-  label: string;
-  description: string;
-  icon: React.ReactNode;
-}[] = [
-  {
-    value: "images_only",
-    label: "画像のみ",
-    description: "アノテーションなしの画像セット",
-    icon: (
-      <svg
-        className="size-5"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        strokeWidth={1.5}
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"
-        />
-      </svg>
-    ),
-  },
-  {
-    value: "coco",
-    label: "COCO形式",
-    description: "annotations.json + 画像フォルダ",
-    icon: (
-      <svg
-        className="size-5"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        strokeWidth={1.5}
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"
-        />
-      </svg>
-    ),
-  },
-  {
-    value: "yolo",
-    label: "YOLO形式",
-    description: "data.yaml + labels/ + images/",
-    icon: (
-      <svg
-        className="size-5"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        strokeWidth={1.5}
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M3.75 9.776c.112-.017.227-.026.344-.026h15.812c.117 0 .232.009.344.026m-16.5 0a2.25 2.25 0 00-1.883 2.542l.857 6a2.25 2.25 0 002.227 1.932H19.05a2.25 2.25 0 002.227-1.932l.857-6a2.25 2.25 0 00-1.883-2.542m-16.5 0V6A2.25 2.25 0 016 3.75h3.879a1.5 1.5 0 011.06.44l2.122 2.12a1.5 1.5 0 001.06.44H18A2.25 2.25 0 0120.25 9v.776"
-        />
-      </svg>
-    ),
-  },
-];
+type ProcessingPhase = "uploading" | "analyzing" | "done";
 
 function formatFileSize(bytes: number): string {
   if (bytes === 0) return "0 B";
@@ -128,22 +59,393 @@ function formatFileSize(bytes: number): string {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${units[i]}`;
 }
 
-export function ImportDialog({
+// Processing phase indicator component for videos
+function VideoProcessingIndicator({
+  phase,
+  progress,
+  fileName,
+  fileSize,
+}: {
+  phase: ProcessingPhase;
+  progress: number;
+  fileName: string;
+  fileSize: number;
+}) {
+  const phases: {
+    key: ProcessingPhase;
+    label: string;
+    icon: React.ReactNode;
+  }[] = [
+    {
+      key: "uploading",
+      label: "アップロード中",
+      icon: (
+        <svg
+          className="size-5"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={1.5}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"
+          />
+        </svg>
+      ),
+    },
+    {
+      key: "analyzing",
+      label: "処理中",
+      icon: (
+        <svg
+          className="size-5"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={1.5}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75"
+          />
+        </svg>
+      ),
+    },
+    {
+      key: "done",
+      label: "完了",
+      icon: (
+        <svg
+          className="size-5"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M5 13l4 4L19 7"
+          />
+        </svg>
+      ),
+    },
+  ];
+
+  const currentIndex = phases.findIndex((p) => p.key === phase);
+
+  return (
+    <div className="space-y-6">
+      {/* File info card */}
+      <div className="rounded-xl border bg-gradient-to-br from-muted/50 to-muted/20 p-4">
+        <div className="flex items-center gap-4">
+          <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-500">
+            <svg
+              className="size-6"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.5}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z"
+              />
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-medium truncate">{fileName}</p>
+            <p className="text-sm text-muted-foreground">
+              {formatFileSize(fileSize)}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Progress phases */}
+      <div className="flex items-center justify-between gap-2">
+        {phases.map((p, idx) => {
+          const isActive = p.key === phase;
+          const isCompleted = idx < currentIndex;
+          const isPending = idx > currentIndex;
+
+          return (
+            <div key={p.key} className="flex items-center gap-2 flex-1">
+              <div
+                className={cn(
+                  "flex size-10 shrink-0 items-center justify-center rounded-xl transition-all duration-500",
+                  isActive &&
+                    "bg-blue-500 text-white shadow-lg shadow-blue-500/25 scale-110",
+                  isCompleted && "bg-emerald-500/20 text-emerald-600",
+                  isPending && "bg-muted text-muted-foreground"
+                )}
+              >
+                {isCompleted ? (
+                  <svg
+                    className="size-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2.5}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                ) : (
+                  <div className={cn(isActive && "animate-pulse")}>
+                    {p.icon}
+                  </div>
+                )}
+              </div>
+              <div className="flex-1 min-w-0 hidden sm:block">
+                <p
+                  className={cn(
+                    "text-xs font-medium transition-colors duration-300",
+                    isActive && "text-blue-500",
+                    isCompleted && "text-emerald-600",
+                    isPending && "text-muted-foreground"
+                  )}
+                >
+                  {p.label}
+                </p>
+              </div>
+              {idx < phases.length - 1 && (
+                <div
+                  className={cn(
+                    "h-0.5 flex-1 rounded-full transition-all duration-500",
+                    isCompleted ? "bg-emerald-500/40" : "bg-muted"
+                  )}
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Progress bar */}
+      <div className="space-y-2">
+        <Progress
+          value={phase === "analyzing" ? 100 : progress}
+          className={cn("h-2", phase === "analyzing" && "animate-pulse")}
+        />
+        <p className="text-center text-sm text-muted-foreground">
+          {phase === "uploading" && `${progress}% アップロード済み`}
+          {phase === "analyzing" && "映像を処理しています..."}
+          {phase === "done" && "アップロード完了"}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// Processing phase indicator component for ZIPs
+function ZipProcessingIndicator({
+  phase,
+  progress,
+  fileName,
+  fileSize,
+}: {
+  phase: ProcessingPhase;
+  progress: number;
+  fileName: string;
+  fileSize: number;
+}) {
+  const phases: {
+    key: ProcessingPhase;
+    label: string;
+    icon: React.ReactNode;
+  }[] = [
+    {
+      key: "uploading",
+      label: "アップロード中",
+      icon: (
+        <svg
+          className="size-5"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={1.5}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"
+          />
+        </svg>
+      ),
+    },
+    {
+      key: "analyzing",
+      label: "解析中",
+      icon: (
+        <svg
+          className="size-5"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={1.5}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
+          />
+        </svg>
+      ),
+    },
+    {
+      key: "done",
+      label: "完了",
+      icon: (
+        <svg
+          className="size-5"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M5 13l4 4L19 7"
+          />
+        </svg>
+      ),
+    },
+  ];
+
+  const currentIndex = phases.findIndex((p) => p.key === phase);
+
+  return (
+    <div className="space-y-6">
+      {/* File info card */}
+      <div className="rounded-xl border bg-gradient-to-br from-muted/50 to-muted/20 p-4">
+        <div className="flex items-center gap-4">
+          <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <svg
+              className="size-6"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.5}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"
+              />
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-medium truncate">{fileName}</p>
+            <p className="text-sm text-muted-foreground">
+              {formatFileSize(fileSize)}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Progress phases */}
+      <div className="flex items-center justify-between gap-2">
+        {phases.map((p, idx) => {
+          const isActive = p.key === phase;
+          const isCompleted = idx < currentIndex;
+          const isPending = idx > currentIndex;
+
+          return (
+            <div key={p.key} className="flex items-center gap-2 flex-1">
+              <div
+                className={cn(
+                  "flex size-10 shrink-0 items-center justify-center rounded-xl transition-all duration-500",
+                  isActive &&
+                    "bg-primary text-primary-foreground shadow-lg shadow-primary/25 scale-110",
+                  isCompleted && "bg-emerald-500/20 text-emerald-600",
+                  isPending && "bg-muted text-muted-foreground"
+                )}
+              >
+                {isCompleted ? (
+                  <svg
+                    className="size-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2.5}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                ) : (
+                  <div className={cn(isActive && "animate-pulse")}>
+                    {p.icon}
+                  </div>
+                )}
+              </div>
+              <div className="flex-1 min-w-0 hidden sm:block">
+                <p
+                  className={cn(
+                    "text-xs font-medium transition-colors duration-300",
+                    isActive && "text-primary",
+                    isCompleted && "text-emerald-600",
+                    isPending && "text-muted-foreground"
+                  )}
+                >
+                  {p.label}
+                </p>
+              </div>
+              {idx < phases.length - 1 && (
+                <div
+                  className={cn(
+                    "h-0.5 flex-1 rounded-full transition-all duration-500",
+                    isCompleted ? "bg-emerald-500/40" : "bg-muted"
+                  )}
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Progress bar */}
+      <div className="space-y-2">
+        <Progress
+          value={phase === "analyzing" ? 100 : progress}
+          className={cn("h-2", phase === "analyzing" && "animate-pulse")}
+        />
+        <p className="text-center text-sm text-muted-foreground">
+          {phase === "uploading" && `${progress}% アップロード済み`}
+          {phase === "analyzing" && "データセットを解析しています..."}
+          {phase === "done" && "準備完了"}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+export function UploadDialog({
   projectId,
   existingLabels,
   open,
   onOpenChange,
   onSuccess,
-}: ImportDialogProps) {
+  initialFile,
+  fileType,
+}: UploadDialogProps) {
   const router = useRouter();
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // State
-  const [step, setStep] = useState<Step>("upload");
-  const [isDragOver, setIsDragOver] = useState(false);
-  const [selectedFormat, setSelectedFormat] =
-    useState<ImportFormat>("images_only");
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [step, setStep] = useState<Step>("processing");
+  const [processingPhase, setProcessingPhase] =
+    useState<ProcessingPhase>("uploading");
   const [uploadProgress, setUploadProgress] = useState(0);
   const [importJobId, setImportJobId] = useState<string | null>(null);
   const [preview, setPreview] = useState<ImportPreviewResponse | null>(null);
@@ -151,13 +453,13 @@ export function ImportDialog({
   const [importName, setImportName] = useState("");
   const [importProgress, setImportProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
+  const [hasStarted, setHasStarted] = useState(false);
 
   // Reset state when dialog closes
   useEffect(() => {
     if (!open) {
-      setStep("upload");
-      setSelectedFile(null);
+      setStep("processing");
+      setProcessingPhase("uploading");
       setUploadProgress(0);
       setImportJobId(null);
       setPreview(null);
@@ -165,11 +467,23 @@ export function ImportDialog({
       setImportName("");
       setImportProgress(0);
       setError(null);
-      setIsUploading(false);
+      setHasStarted(false);
     }
   }, [open]);
 
-  // Poll import status
+  // Start upload when dialog opens
+  useEffect(() => {
+    if (open && initialFile && !hasStarted) {
+      setHasStarted(true);
+      if (fileType === "video") {
+        handleVideoUpload(initialFile);
+      } else {
+        handleZipUpload(initialFile);
+      }
+    }
+  }, [open, initialFile, hasStarted, fileType]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Poll import status for ZIP
   useEffect(() => {
     if (step !== "importing" || !importJobId) return;
 
@@ -194,30 +508,114 @@ export function ImportDialog({
     return () => clearInterval(interval);
   }, [step, importJobId, projectId, router, onSuccess]);
 
-  const handleFileSelect = useCallback(
+  // Handle video upload
+  const handleVideoUpload = useCallback(
     async (file: File) => {
-      if (!file.name.endsWith(".zip")) {
-        setError("ZIPファイルを選択してください");
-        setStep("error");
-        return;
-      }
-
-      setSelectedFile(file);
-      setIsUploading(true);
+      setStep("processing");
+      setProcessingPhase("uploading");
       setError(null);
 
       try {
-        // Get upload URL
-        const urlResult = await requestImportUploadUrl(
+        const urlResult = await requestUploadUrl(
           projectId,
           file.name,
-          selectedFormat
+          file.type || undefined
         );
 
         if (urlResult.error || !urlResult.data) {
           setError(urlResult.error || "アップロードURLの取得に失敗しました");
           setStep("error");
-          setIsUploading(false);
+          return;
+        }
+
+        const { video_id, upload_url } = urlResult.data;
+
+        // Upload file
+        const xhr = new XMLHttpRequest();
+
+        xhr.upload.addEventListener("progress", (event) => {
+          if (event.lengthComputable) {
+            const progress = Math.round((event.loaded / event.total) * 100);
+            setUploadProgress(progress);
+          }
+        });
+
+        await new Promise<void>((resolve, reject) => {
+          xhr.addEventListener("load", () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve();
+            } else {
+              reject(new Error(`Upload failed: ${xhr.status}`));
+            }
+          });
+
+          xhr.addEventListener("error", () => {
+            reject(new Error("ネットワークエラー"));
+          });
+
+          xhr.open("PUT", upload_url);
+          if (file.type) {
+            xhr.setRequestHeader("Content-Type", file.type);
+          }
+          xhr.send(file);
+        });
+
+        // Processing phase
+        setProcessingPhase("analyzing");
+
+        const completeResult = await markUploadComplete(
+          projectId,
+          video_id,
+          file.size
+        );
+
+        if (completeResult.error) {
+          setError(completeResult.error);
+          setStep("error");
+          return;
+        }
+
+        // Show done phase briefly
+        setProcessingPhase("done");
+        await new Promise((r) => setTimeout(r, 800));
+
+        // Complete and close
+        setStep("complete");
+        router.refresh();
+        onSuccess?.();
+
+        // Auto-close after brief delay
+        setTimeout(() => {
+          onOpenChange(false);
+        }, 1200);
+      } catch (err) {
+        console.error("Upload error:", err);
+        setError(
+          err instanceof Error ? err.message : "アップロードに失敗しました"
+        );
+        setStep("error");
+      }
+    },
+    [projectId, router, onSuccess, onOpenChange]
+  );
+
+  // Handle ZIP upload
+  const handleZipUpload = useCallback(
+    async (file: File) => {
+      setStep("processing");
+      setProcessingPhase("uploading");
+      setError(null);
+
+      try {
+        const urlResult = await requestImportUploadUrl(
+          projectId,
+          file.name,
+          "images_only"
+        );
+
+        if (urlResult.error || !urlResult.data) {
+          setError(urlResult.error || "アップロードURLの取得に失敗しました");
+          setStep("error");
           return;
         }
 
@@ -252,13 +650,15 @@ export function ImportDialog({
           xhr.send(file);
         });
 
+        // Switch to analyzing phase
+        setProcessingPhase("analyzing");
+
         // Get preview
         const previewResult = await previewImport(projectId, import_job_id);
 
         if (previewResult.error || !previewResult.data) {
           setError(previewResult.error || "プレビューの取得に失敗しました");
           setStep("error");
-          setIsUploading(false);
           return;
         }
 
@@ -279,8 +679,11 @@ export function ImportDialog({
         // Set default import name
         setImportName(file.name.replace(".zip", ""));
 
+        // Brief pause to show completion, then transition
+        setProcessingPhase("done");
+        await new Promise((r) => setTimeout(r, 600));
+
         // Move to preview step
-        setIsUploading(false);
         setStep("preview");
       } catch (err) {
         console.error("Upload error:", err);
@@ -288,49 +691,9 @@ export function ImportDialog({
           err instanceof Error ? err.message : "アップロードに失敗しました"
         );
         setStep("error");
-        setIsUploading(false);
       }
     },
-    [projectId, selectedFormat, existingLabels]
-  );
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragOver(true);
-  }, []);
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragOver(false);
-  }, []);
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setIsDragOver(false);
-
-      const file = e.dataTransfer.files[0];
-      if (file) {
-        handleFileSelect(file);
-      }
-    },
-    [handleFileSelect]
-  );
-
-  const handleFileInputChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file) {
-        handleFileSelect(file);
-      }
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
-    },
-    [handleFileSelect]
+    [projectId, existingLabels]
   );
 
   const handleStartImport = useCallback(async () => {
@@ -349,278 +712,26 @@ export function ImportDialog({
     }
   }, [importJobId, projectId, labelMapping, importName]);
 
-  const getStepIndex = (s: Step): number => {
-    const idx = STEPS.findIndex((st) => st.key === s);
-    return idx >= 0 ? idx : -1;
-  };
-
-  const currentStepIndex = getStepIndex(step);
-  const showStepIndicator =
-    step === "upload" || step === "preview" || step === "mapping";
-
-  const renderStepIndicator = () => (
-    <div className="flex items-center justify-center gap-2 pb-4 mb-4 border-b">
-      {STEPS.map((s, idx) => {
-        const isActive = s.key === step;
-        const isCompleted = currentStepIndex > idx;
-        const isClickable = isCompleted && step !== "importing";
-
-        return (
-          <div key={s.key} className="flex items-center">
-            <button
-              type="button"
-              disabled={!isClickable}
-              onClick={() => isClickable && setStep(s.key)}
-              className={cn(
-                "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200",
-                isActive && "bg-primary text-primary-foreground",
-                isCompleted &&
-                  !isActive &&
-                  "bg-emerald-500/20 text-emerald-600 hover:bg-emerald-500/30 cursor-pointer",
-                !isActive && !isCompleted && "bg-muted text-muted-foreground"
-              )}
-            >
-              {isCompleted && !isActive ? (
-                <svg
-                  className="size-3.5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2.5}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M5 13l4 4L19 7"
-                  />
-                </svg>
-              ) : (
-                <span className="size-4 flex items-center justify-center">
-                  {idx + 1}
-                </span>
-              )}
-              <span>{s.label}</span>
-            </button>
-            {idx < STEPS.length - 1 && (
-              <div
-                className={cn(
-                  "w-8 h-0.5 mx-1 rounded-full transition-colors duration-200",
-                  isCompleted ? "bg-emerald-500/40" : "bg-muted"
-                )}
-              />
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-
-  const renderUploadStep = () => (
-    <div className="space-y-6">
-      {/* Format Selection */}
-      <div className="space-y-3">
-        <Label className="text-sm font-medium">インポート形式</Label>
-        <RadioGroup
-          value={selectedFormat}
-          onValueChange={(v) => setSelectedFormat(v as ImportFormat)}
-          className="grid gap-2"
-          disabled={isUploading}
-        >
-          {FORMAT_OPTIONS.map((option) => (
-            <div key={option.value} className="relative">
-              <RadioGroupItem
-                value={option.value}
-                id={option.value}
-                className="peer sr-only"
-              />
-              <Label
-                htmlFor={option.value}
-                className={cn(
-                  "flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-all duration-200",
-                  "hover:bg-muted/50",
-                  "peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/5",
-                  isUploading && "opacity-50 cursor-not-allowed"
-                )}
-              >
-                <div
-                  className={cn(
-                    "flex size-10 shrink-0 items-center justify-center rounded-lg transition-all duration-200",
-                    selectedFormat === option.value
-                      ? "bg-primary/20 text-primary"
-                      : "bg-muted text-muted-foreground"
-                  )}
-                >
-                  {option.icon}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium">{option.label}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {option.description}
-                  </div>
-                </div>
-                <div
-                  className={cn(
-                    "flex size-5 items-center justify-center rounded-full border-2 transition-all duration-200",
-                    selectedFormat === option.value
-                      ? "border-primary bg-primary"
-                      : "border-muted-foreground/30"
-                  )}
-                >
-                  {selectedFormat === option.value && (
-                    <div className="size-2 rounded-full bg-white" />
-                  )}
-                </div>
-              </Label>
-            </div>
-          ))}
-        </RadioGroup>
-      </div>
-
-      {/* Drop Zone */}
-      <div
-        className={cn(
-          "relative rounded-xl border-2 border-dashed transition-all duration-200",
-          isUploading ? "pointer-events-none" : "cursor-pointer",
-          isDragOver
-            ? "border-primary bg-primary/5 scale-[1.01]"
-            : "border-muted-foreground/25 hover:border-muted-foreground/50 hover:bg-muted/30"
-        )}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        onClick={() => !isUploading && fileInputRef.current?.click()}
-      >
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".zip"
-          className="hidden"
-          onChange={handleFileInputChange}
-          disabled={isUploading}
+  const renderProcessingStep = () => {
+    if (fileType === "video") {
+      return (
+        <VideoProcessingIndicator
+          phase={processingPhase}
+          progress={uploadProgress}
+          fileName={initialFile.name}
+          fileSize={initialFile.size}
         />
-
-        <div className="flex flex-col items-center justify-center gap-4 p-8">
-          <div
-            className={cn(
-              "flex size-16 items-center justify-center rounded-2xl transition-all duration-200",
-              isDragOver
-                ? "bg-primary/20 text-primary scale-110"
-                : "bg-muted text-muted-foreground"
-            )}
-          >
-            <svg
-              className="size-8"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={1.5}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"
-              />
-            </svg>
-          </div>
-
-          <div className="text-center">
-            <p className="text-sm font-medium">
-              {isDragOver
-                ? "ドロップしてアップロード"
-                : "ZIPファイルをドラッグ&ドロップ"}
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              または
-              <Button
-                variant="link"
-                className="h-auto p-0 px-1 text-xs"
-                disabled={isUploading}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  fileInputRef.current?.click();
-                }}
-              >
-                ファイルを選択
-              </Button>
-            </p>
-            <p className="mt-2 text-xs text-muted-foreground/70">
-              対応形式: ZIP (画像 + アノテーション)
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Upload Progress Card */}
-      {isUploading && selectedFile ? (
-        <div
-          className={cn(
-            "rounded-lg border p-3 transition-all duration-200",
-            uploadProgress === 100
-              ? "border-emerald-500/50 bg-emerald-500/5"
-              : "border-border"
-          )}
-        >
-          <div className="flex items-center gap-3">
-            <div
-              className={cn(
-                "flex size-8 shrink-0 items-center justify-center rounded-lg transition-all duration-200",
-                uploadProgress === 100
-                  ? "bg-emerald-500/20 text-emerald-600"
-                  : "bg-muted text-muted-foreground"
-              )}
-            >
-              {uploadProgress === 100 ? (
-                <svg
-                  className="size-4 animate-pulse"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-              ) : (
-                <svg
-                  className="size-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={1.5}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m6.75 12l-3-3m0 0l-3 3m3-3v6m-1.5-15H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"
-                  />
-                </svg>
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="truncate text-sm font-medium">
-                {selectedFile.name}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {formatFileSize(selectedFile.size)}
-                {uploadProgress < 100
-                  ? ` • ${uploadProgress}%`
-                  : " • 解析中..."}
-              </p>
-            </div>
-          </div>
-          <div className="mt-2">
-            <Progress
-              value={uploadProgress}
-              className={cn("h-1.5", uploadProgress === 100 && "animate-pulse")}
-            />
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
+      );
+    }
+    return (
+      <ZipProcessingIndicator
+        phase={processingPhase}
+        progress={uploadProgress}
+        fileName={initialFile.name}
+        fileSize={initialFile.size}
+      />
+    );
+  };
 
   const renderPreviewStep = () => (
     <div className="space-y-6">
@@ -867,9 +978,13 @@ export function ImportDialog({
       </div>
 
       <div className="text-center space-y-2">
-        <p className="text-xl font-semibold">インポート完了</p>
+        <p className="text-xl font-semibold">
+          {fileType === "video" ? "アップロード完了" : "インポート完了"}
+        </p>
         <p className="text-sm text-muted-foreground">
-          データセットが正常にインポートされました
+          {fileType === "video"
+            ? "映像が正常にアップロードされました"
+            : "データセットが正常にインポートされました"}
         </p>
       </div>
     </div>
@@ -902,8 +1017,8 @@ export function ImportDialog({
 
   const renderContent = () => {
     switch (step) {
-      case "upload":
-        return renderUploadStep();
+      case "processing":
+        return renderProcessingStep();
       case "preview":
         return renderPreviewStep();
       case "mapping":
@@ -918,11 +1033,24 @@ export function ImportDialog({
   };
 
   const getTitle = () => {
+    if (fileType === "video") {
+      switch (step) {
+        case "processing":
+          return "映像をアップロード中";
+        case "complete":
+          return "完了";
+        case "error":
+          return "エラー";
+        default:
+          return "映像をアップロード";
+      }
+    }
+
     switch (step) {
-      case "upload":
-        return "データセットをインポート";
+      case "processing":
+        return "データセットを処理中";
       case "preview":
-        return "インポートのプレビュー";
+        return "インポート内容";
       case "mapping":
         return "ラベルマッピング";
       case "importing":
@@ -935,9 +1063,18 @@ export function ImportDialog({
   };
 
   const getDescription = () => {
+    if (fileType === "video") {
+      switch (step) {
+        case "processing":
+          return "映像ファイルをアップロードしています";
+        default:
+          return undefined;
+      }
+    }
+
     switch (step) {
-      case "upload":
-        return "COCO/YOLO形式または画像のみのZIPファイルをインポート";
+      case "processing":
+        return "ファイルをアップロードして解析しています";
       case "preview":
         return "インポート内容を確認してください";
       case "mapping":
@@ -957,25 +1094,23 @@ export function ImportDialog({
           ) : null}
         </DialogHeader>
 
-        {showStepIndicator ? renderStepIndicator() : null}
-
         {renderContent()}
 
         <DialogFooter>
-          {step === "upload" && (
+          {step === "processing" && (
             <Button
               variant="outline"
               onClick={() => onOpenChange(false)}
-              disabled={isUploading}
+              disabled={processingPhase !== "uploading"}
             >
               キャンセル
             </Button>
           )}
 
-          {step === "preview" && (
+          {step === "preview" ? (
             <>
-              <Button variant="outline" onClick={() => setStep("upload")}>
-                戻る
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                キャンセル
               </Button>
               {preview && preview.labels.length > 0 ? (
                 <Button onClick={() => setStep("mapping")}>
@@ -985,20 +1120,20 @@ export function ImportDialog({
                 <Button onClick={handleStartImport}>インポート開始</Button>
               )}
             </>
-          )}
+          ) : null}
 
-          {step === "mapping" && (
+          {step === "mapping" ? (
             <>
               <Button variant="outline" onClick={() => setStep("preview")}>
                 戻る
               </Button>
               <Button onClick={handleStartImport}>インポート開始</Button>
             </>
-          )}
+          ) : null}
 
-          {(step === "complete" || step === "error") && (
+          {step === "complete" || step === "error" ? (
             <Button onClick={() => onOpenChange(false)}>閉じる</Button>
-          )}
+          ) : null}
         </DialogFooter>
       </DialogContent>
     </Dialog>

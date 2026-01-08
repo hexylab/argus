@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { Label as LabelType } from "@/types/label";
 import type { TaskStatusResponse } from "@/types/auto-annotation";
@@ -168,7 +169,7 @@ function ConfidenceSlider({
   );
 }
 
-// Label selector with color chips
+// Label selector with color chips, search, and scrolling
 function LabelSelector({
   labels,
   selectedId,
@@ -180,6 +181,21 @@ function LabelSelector({
   onChange: (id: string) => void;
   isLoading: boolean;
 }) {
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Filter labels based on search
+  const filteredLabels = useMemo(() => {
+    if (!searchQuery.trim()) return labels;
+    const query = searchQuery.toLowerCase();
+    return labels.filter(
+      (label) =>
+        label.name.toLowerCase().includes(query) ||
+        label.description?.toLowerCase().includes(query)
+    );
+  }, [labels, searchQuery]);
+
+  const showSearch = labels.length > 8;
+
   if (isLoading) {
     return (
       <div className="space-y-2">
@@ -204,54 +220,120 @@ function LabelSelector({
 
   return (
     <div className="space-y-2">
-      <Label className="text-sm font-medium">検出対象ラベル</Label>
-      <div className="grid gap-2">
-        {labels.map((label) => {
-          const isSelected = label.id === selectedId;
-          return (
+      <div className="flex items-center justify-between">
+        <Label className="text-sm font-medium">検出対象ラベル</Label>
+        <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded tabular-nums">
+          {filteredLabels.length === labels.length
+            ? `${labels.length} 件`
+            : `${filteredLabels.length} / ${labels.length} 件`}
+        </span>
+      </div>
+
+      {/* Search input - shown when many labels */}
+      {showSearch ? (
+        <div className="relative">
+          <svg
+            className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
+            />
+          </svg>
+          <Input
+            type="text"
+            placeholder="ラベルを検索..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="h-8 pl-8 text-sm"
+          />
+          {searchQuery ? (
             <button
-              key={label.id}
               type="button"
-              onClick={() => onChange(label.id)}
-              className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left",
-                "transition-all duration-200",
-                isSelected
-                  ? "border-primary bg-primary/5 ring-1 ring-primary/20"
-                  : "border-border hover:border-primary/50 hover:bg-muted/50"
-              )}
+              onClick={() => setSearchQuery("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground hover:text-foreground transition-colors"
             >
-              {/* Color chip */}
-              <div
-                className="size-4 rounded-full ring-1 ring-inset ring-black/10 shrink-0"
-                style={{ backgroundColor: label.color }}
-              />
-              <span
+              <svg
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
+      {/* Scrollable label list */}
+      <div
+        className={cn(
+          "rounded-lg border divide-y overflow-y-auto",
+          showSearch ? "max-h-48" : "max-h-64"
+        )}
+      >
+        {filteredLabels.length === 0 ? (
+          <div className="py-6 text-center">
+            <p className="text-sm text-muted-foreground">
+              「{searchQuery}」に一致するラベルがありません
+            </p>
+          </div>
+        ) : (
+          filteredLabels.map((label) => {
+            const isSelected = label.id === selectedId;
+            return (
+              <button
+                key={label.id}
+                type="button"
+                onClick={() => onChange(label.id)}
                 className={cn(
-                  "text-sm font-medium flex-1",
-                  isSelected ? "text-foreground" : "text-muted-foreground"
+                  "flex items-center gap-3 w-full px-3 py-2.5 text-left",
+                  "transition-all duration-150",
+                  isSelected ? "bg-primary/5" : "hover:bg-muted/50"
                 )}
               >
-                {label.name}
-              </span>
-              {isSelected ? (
-                <svg
-                  className="size-4 text-primary shrink-0"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2.5}
+                {/* Color chip */}
+                <div
+                  className="size-3.5 rounded-full ring-1 ring-inset ring-black/10 shrink-0"
+                  style={{ backgroundColor: label.color }}
+                />
+                <span
+                  className={cn(
+                    "text-sm font-medium flex-1 truncate",
+                    isSelected ? "text-foreground" : "text-muted-foreground"
+                  )}
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M4.5 12.75l6 6 9-13.5"
-                  />
-                </svg>
-              ) : null}
-            </button>
-          );
-        })}
+                  {label.name}
+                </span>
+                {isSelected ? (
+                  <svg
+                    className="size-4 text-primary shrink-0"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2.5}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M4.5 12.75l6 6 9-13.5"
+                    />
+                  </svg>
+                ) : null}
+              </button>
+            );
+          })
+        )}
       </div>
     </div>
   );
