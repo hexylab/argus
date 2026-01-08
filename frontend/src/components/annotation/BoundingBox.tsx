@@ -28,6 +28,8 @@ const MIN_SIZE = 10;
 const LABEL_HEIGHT = 20;
 const LABEL_PADDING_X = 6;
 const LABEL_FONT_SIZE = 12;
+const DIMENSION_LABEL_HEIGHT = 18;
+const DIMENSION_LABEL_PADDING = 4;
 
 export function BoundingBox({
   data,
@@ -51,6 +53,12 @@ export function BoundingBox({
     height: data.height,
   });
 
+  // Track Shift key state for aspect ratio locking
+  const [isShiftPressed, setIsShiftPressed] = useState(false);
+
+  // Track if currently transforming (resizing)
+  const [isTransforming, setIsTransforming] = useState(false);
+
   // Sync with data when it changes (e.g., after undo/redo or external update)
   useEffect(() => {
     setLiveBox({
@@ -69,6 +77,31 @@ export function BoundingBox({
       transformerRef.current.nodes([shapeRef.current]);
       transformerRef.current.getLayer()?.batchDraw();
     }
+  }, [isSelected]);
+
+  // Track Shift key for aspect ratio locking
+  useEffect(() => {
+    if (!isSelected) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Shift") {
+        setIsShiftPressed(true);
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === "Shift") {
+        setIsShiftPressed(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+    };
   }, [isSelected]);
 
   // Clamp position within image bounds
@@ -121,6 +154,7 @@ export function BoundingBox({
   };
 
   const handleTransformStart = () => {
+    setIsTransforming(true);
     onTransformStart?.();
   };
 
@@ -141,6 +175,7 @@ export function BoundingBox({
   };
 
   const handleTransformEnd = () => {
+    setIsTransforming(false);
     const node = shapeRef.current;
     if (!node) return;
 
@@ -180,6 +215,11 @@ export function BoundingBox({
   const labelX = liveBox.x;
   const labelY = liveBox.y - LABEL_HEIGHT;
 
+  // Dimension label text during transform
+  const dimensionText = `${Math.round(liveBox.width)} × ${Math.round(liveBox.height)}`;
+  const dimensionLabelWidth =
+    dimensionText.length * 7 + DIMENSION_LABEL_PADDING * 2;
+
   return (
     <>
       {/* Label - adjacent to the bounding box */}
@@ -199,6 +239,30 @@ export function BoundingBox({
           fill="white"
         />
       </Group>
+
+      {/* Dimension label - shown during transform */}
+      {isTransforming ? (
+        <Group
+          x={liveBox.x + liveBox.width - dimensionLabelWidth}
+          y={liveBox.y + liveBox.height + 4}
+          listening={false}
+        >
+          <Rect
+            width={dimensionLabelWidth}
+            height={DIMENSION_LABEL_HEIGHT}
+            fill="rgba(0, 0, 0, 0.75)"
+            cornerRadius={3}
+          />
+          <Text
+            x={DIMENSION_LABEL_PADDING}
+            y={3}
+            text={dimensionText}
+            fontSize={11}
+            fontFamily="system-ui, sans-serif"
+            fill="white"
+          />
+        </Group>
+      ) : null}
 
       {/* Bounding box - draggable */}
       <Rect
@@ -231,10 +295,15 @@ export function BoundingBox({
         <Transformer
           ref={transformerRef}
           rotateEnabled={false}
+          keepRatio={isShiftPressed}
           enabledAnchors={[
             "top-left",
+            "top-center",
             "top-right",
+            "middle-left",
+            "middle-right",
             "bottom-left",
+            "bottom-center",
             "bottom-right",
           ]}
           anchorSize={10}
