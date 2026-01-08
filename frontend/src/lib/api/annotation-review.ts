@@ -3,9 +3,11 @@ import type {
   AnnotationWithFrame,
   AnnotationReviewStats,
   AnnotationFilterParams,
+  AnnotationUpdateRequest,
   BulkApproveResponse,
   BulkDeleteResponse,
 } from "@/types/annotation-review";
+import type { Annotation } from "@/types/annotation";
 
 export async function getProjectAnnotations(
   accessToken: string,
@@ -73,5 +75,22 @@ export async function bulkDeleteAnnotations(
     method: "POST",
     accessToken,
     body: JSON.stringify({ annotation_ids: annotationIds }),
+  });
+}
+
+export async function updateAnnotation(
+  accessToken: string,
+  projectId: string,
+  videoId: string,
+  frameId: string,
+  annotationId: string,
+  data: AnnotationUpdateRequest
+): Promise<Annotation> {
+  const endpoint = `/api/v1/projects/${projectId}/videos/${videoId}/frames/${frameId}/annotations/${annotationId}`;
+
+  return apiClient<Annotation>(endpoint, {
+    method: "PATCH",
+    accessToken,
+    body: JSON.stringify(data),
   });
 }

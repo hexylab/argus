@@ -1,52 +1,198 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { AnnotationWithFrame } from "@/types/annotation-review";
+import { QuickReviewEditCanvas } from "./quick-review-edit-canvas";
+import type {
+  AnnotationWithFrame,
+  AnnotationUpdateRequest,
+} from "@/types/annotation-review";
+import type { Label } from "@/types/label";
 
 interface QuickReviewModalProps {
   annotations: AnnotationWithFrame[];
   projectId: string;
+  labels: Label[];
   initialIndex?: number;
   onApprove: (id: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  onUpdate: (
+    annotation: AnnotationWithFrame,
+    data: AnnotationUpdateRequest
+  ) => Promise<void>;
   onClose: () => void;
+}
+
+interface EditableBBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  labelId: string;
+  labelName: string;
+  labelColor: string;
+}
+
+// Icons
+function EditIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10"
+      />
+    </svg>
+  );
+}
+
+function CheckIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M4.5 12.75l6 6 9-13.5"
+      />
+    </svg>
+  );
+}
+
+function XIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M6 18L18 6M6 6l12 12"
+      />
+    </svg>
+  );
 }
 
 export function QuickReviewModal({
   annotations,
   projectId,
+  labels,
   initialIndex = 0,
   onApprove,
   onDelete,
+  onUpdate,
   onClose,
 }: QuickReviewModalProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [isProcessing, setIsProcessing] = useState(false);
   const [imageError, setImageError] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedBBox, setEditedBBox] = useState<EditableBBox | null>(null);
+  const [hasChanges, setHasChanges] = useState(false);
+
+  // Track original bbox to detect changes
+  const originalBBoxRef = useRef<EditableBBox | null>(null);
 
   const current = annotations[currentIndex];
   const hasNext = currentIndex < annotations.length - 1;
   const hasPrev = currentIndex > 0;
 
+  // Initialize edited bbox when entering edit mode
+  const startEditing = useCallback(() => {
+    if (!current) return;
+    const bbox: EditableBBox = {
+      x: current.bbox_x,
+      y: current.bbox_y,
+      width: current.bbox_width,
+      height: current.bbox_height,
+      labelId: current.label_id,
+      labelName: current.label_name,
+      labelColor: current.label_color,
+    };
+    setEditedBBox(bbox);
+    originalBBoxRef.current = { ...bbox };
+    setIsEditing(true);
+    setHasChanges(false);
+  }, [current]);
+
+  // Cancel editing
+  const cancelEditing = useCallback(() => {
+    setIsEditing(false);
+    setEditedBBox(null);
+    originalBBoxRef.current = null;
+    setHasChanges(false);
+  }, []);
+
+  // Save changes
+  const saveChanges = useCallback(async () => {
+    if (!current || !editedBBox || !hasChanges) {
+      cancelEditing();
+      return;
+    }
+
+    setIsProcessing(true);
+    await onUpdate(current, {
+      bbox_x: editedBBox.x,
+      bbox_y: editedBBox.y,
+      bbox_width: editedBBox.width,
+      bbox_height: editedBBox.height,
+      label_id: editedBBox.labelId,
+    });
+    setIsProcessing(false);
+    cancelEditing();
+  }, [current, editedBBox, hasChanges, onUpdate, cancelEditing]);
+
+  // Handle bbox change from canvas
+  const handleBBoxChange = useCallback((bbox: EditableBBox) => {
+    setEditedBBox(bbox);
+    // Check if there are actual changes
+    const original = originalBBoxRef.current;
+    if (original) {
+      const changed =
+        Math.abs(bbox.x - original.x) > 0.001 ||
+        Math.abs(bbox.y - original.y) > 0.001 ||
+        Math.abs(bbox.width - original.width) > 0.001 ||
+        Math.abs(bbox.height - original.height) > 0.001 ||
+        bbox.labelId !== original.labelId;
+      setHasChanges(changed);
+    }
+  }, []);
+
   const goNext = useCallback(() => {
     if (hasNext) {
       setCurrentIndex((i) => i + 1);
       setImageError(false);
+      cancelEditing();
     } else {
       onClose();
     }
-  }, [hasNext, onClose]);
+  }, [hasNext, onClose, cancelEditing]);
 
   const goPrev = useCallback(() => {
     if (hasPrev) {
       setCurrentIndex((i) => i - 1);
       setImageError(false);
+      cancelEditing();
     }
-  }, [hasPrev]);
+  }, [hasPrev, cancelEditing]);
 
   const handleApprove = useCallback(async () => {
     if (!current || isProcessing) return;
@@ -66,7 +212,15 @@ export function QuickReviewModal({
       setCurrentIndex((i) => i - 1);
     }
     setImageError(false);
-  }, [current, isProcessing, onDelete, currentIndex, annotations.length]);
+    cancelEditing();
+  }, [
+    current,
+    isProcessing,
+    onDelete,
+    currentIndex,
+    annotations.length,
+    cancelEditing,
+  ]);
 
   const handleSkip = useCallback(() => {
     goNext();
@@ -77,6 +231,23 @@ export function QuickReviewModal({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement) return;
 
+      // Edit mode specific shortcuts
+      if (isEditing) {
+        switch (e.key) {
+          case "Escape":
+            e.preventDefault();
+            cancelEditing();
+            break;
+          case "Enter":
+            e.preventDefault();
+            saveChanges();
+            break;
+          // Arrow keys are handled by the canvas component
+        }
+        return;
+      }
+
+      // Normal mode shortcuts
       switch (e.key) {
         case "Enter":
         case "a":
@@ -102,12 +273,26 @@ export function QuickReviewModal({
           e.preventDefault();
           onClose();
           break;
+        case "e":
+          e.preventDefault();
+          startEditing();
+          break;
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleApprove, handleDelete, handleSkip, goPrev, onClose]);
+  }, [
+    isEditing,
+    handleApprove,
+    handleDelete,
+    handleSkip,
+    goPrev,
+    onClose,
+    startEditing,
+    cancelEditing,
+    saveChanges,
+  ]);
 
   if (!current) {
     return null;
@@ -128,7 +313,7 @@ export function QuickReviewModal({
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/80 backdrop-blur-sm"
-        onClick={onClose}
+        onClick={isEditing ? undefined : onClose}
       />
 
       {/* Modal */}
@@ -138,21 +323,10 @@ export function QuickReviewModal({
           type="button"
           onClick={onClose}
           className="absolute -top-12 right-0 text-white/70 hover:text-white transition-colors"
+          disabled={isEditing}
         >
           <span className="sr-only">閉じる</span>
-          <svg
-            className="size-8"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M6 18L18 6M6 6l12 12"
-            />
-          </svg>
+          <XIcon className="size-8" />
         </button>
 
         {/* Progress */}
@@ -161,25 +335,50 @@ export function QuickReviewModal({
             {currentIndex + 1} / {annotations.length}
           </span>
           <span className="text-xs">
-            Enter=承認 / Delete=削除 / →=スキップ / Esc=閉じる
+            {isEditing
+              ? "Enter=保存 / Esc=キャンセル / 矢印キー=微調整"
+              : "E=編集 / Enter=承認 / Delete=削除 / →=スキップ / Esc=閉じる"}
           </span>
         </div>
 
         {/* Main content */}
         <div className="bg-background rounded-2xl overflow-hidden shadow-2xl">
-          {/* Image area */}
+          {/* Image/Edit area */}
           <div className="relative aspect-video bg-muted">
-            {imageUrl && !imageError ? (
-              <Image
-                src={imageUrl}
-                alt={`Frame ${current.frame_number}`}
-                fill
-                className="object-contain"
-                sizes="(max-width: 1024px) 100vw, 896px"
-                onError={() => setImageError(true)}
-                unoptimized
-                priority
+            {isEditing && editedBBox && imageUrl ? (
+              // Edit mode: show canvas
+              <QuickReviewEditCanvas
+                imageUrl={imageUrl}
+                bbox={editedBBox}
+                labels={labels}
+                onChange={handleBBoxChange}
               />
+            ) : imageUrl && !imageError ? (
+              // View mode: show image with overlay
+              <>
+                <Image
+                  src={imageUrl}
+                  alt={`Frame ${current.frame_number}`}
+                  fill
+                  className="object-contain"
+                  sizes="(max-width: 1024px) 100vw, 896px"
+                  onError={() => setImageError(true)}
+                  unoptimized
+                  priority
+                />
+                {/* Bounding box overlay */}
+                <div
+                  className="absolute border-3 border-dashed pointer-events-none"
+                  style={{
+                    left: `${current.bbox_x * 100}%`,
+                    top: `${current.bbox_y * 100}%`,
+                    width: `${current.bbox_width * 100}%`,
+                    height: `${current.bbox_height * 100}%`,
+                    borderColor: current.label_color,
+                    borderWidth: "3px",
+                  }}
+                />
+              </>
             ) : (
               <div className="absolute inset-0 flex items-center justify-center">
                 <svg
@@ -198,41 +397,24 @@ export function QuickReviewModal({
               </div>
             )}
 
-            {/* Bounding box overlay */}
-            <div
-              className="absolute border-3 border-dashed pointer-events-none"
-              style={{
-                left: `${current.bbox_x * 100}%`,
-                top: `${current.bbox_y * 100}%`,
-                width: `${current.bbox_width * 100}%`,
-                height: `${current.bbox_height * 100}%`,
-                borderColor: current.label_color,
-                borderWidth: "3px",
-              }}
-            />
-
             {/* Status badge */}
-            {current.reviewed ? (
+            {current.reviewed && !isEditing ? (
               <div className="absolute top-4 right-4 px-3 py-1.5 rounded-full bg-emerald-600 text-white text-sm font-medium flex items-center gap-2">
-                <svg
-                  className="size-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M4.5 12.75l6 6 9-13.5"
-                  />
-                </svg>
+                <CheckIcon className="size-4" />
                 承認済み
               </div>
             ) : null}
 
-            {/* Navigation arrows */}
-            {hasPrev ? (
+            {/* Edit mode badge */}
+            {isEditing ? (
+              <div className="absolute top-4 right-4 px-3 py-1.5 rounded-full bg-blue-600 text-white text-sm font-medium flex items-center gap-2">
+                <EditIcon className="size-4" />
+                編集中
+              </div>
+            ) : null}
+
+            {/* Navigation arrows (hide in edit mode) */}
+            {!isEditing && hasPrev ? (
               <button
                 type="button"
                 onClick={goPrev}
@@ -253,7 +435,7 @@ export function QuickReviewModal({
                 </svg>
               </button>
             ) : null}
-            {hasNext ? (
+            {!isEditing && hasNext ? (
               <button
                 type="button"
                 onClick={goNext}
@@ -308,90 +490,130 @@ export function QuickReviewModal({
                   AI生成
                 </span>
               ) : null}
+
+              {/* Has changes indicator */}
+              {isEditing && hasChanges ? (
+                <span className="text-amber-500 text-sm font-medium">
+                  変更あり
+                </span>
+              ) : null}
             </div>
 
-            {/* Edit link */}
-            <Link
-              href={`/projects/${projectId}/videos/${current.video_id}/frames/${current.frame_id}`}
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              詳細を編集 →
-            </Link>
+            {/* Edit link (hide in edit mode) */}
+            {!isEditing ? (
+              <Link
+                href={`/projects/${projectId}/videos/${current.video_id}/frames/${current.frame_id}`}
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                詳細を編集 →
+              </Link>
+            ) : null}
           </div>
 
           {/* Action buttons */}
           <div className="px-6 py-5 bg-muted/30 border-t border-border/50 flex items-center justify-center gap-4">
-            <Button
-              variant="destructive"
-              size="lg"
-              onClick={handleDelete}
-              disabled={isProcessing}
-              className="w-32 gap-2"
-            >
-              <svg
-                className="size-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
-                />
-              </svg>
-              削除
-            </Button>
+            {isEditing ? (
+              // Edit mode actions
+              <>
+                <Button
+                  variant="outline"
+                  size="lg"
+                  onClick={cancelEditing}
+                  disabled={isProcessing}
+                  className="w-32 gap-2"
+                >
+                  <XIcon className="size-5" />
+                  キャンセル
+                </Button>
+                <Button
+                  size="lg"
+                  onClick={saveChanges}
+                  disabled={isProcessing || !hasChanges}
+                  className={cn(
+                    "w-32 gap-2",
+                    "bg-gradient-to-r from-blue-600 to-blue-700",
+                    "hover:from-blue-500 hover:to-blue-600"
+                  )}
+                >
+                  <CheckIcon className="size-5" />
+                  保存
+                </Button>
+              </>
+            ) : (
+              // Normal mode actions
+              <>
+                <Button
+                  variant="destructive"
+                  size="lg"
+                  onClick={handleDelete}
+                  disabled={isProcessing}
+                  className="w-32 gap-2"
+                >
+                  <svg
+                    className="size-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
+                    />
+                  </svg>
+                  削除
+                </Button>
 
-            <Button
-              variant="outline"
-              size="lg"
-              onClick={handleSkip}
-              disabled={isProcessing}
-              className="w-32 gap-2"
-            >
-              <svg
-                className="size-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M3 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 010 1.954l-7.108 4.061A1.125 1.125 0 013 16.811V8.69zM12.75 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 010 1.954l-7.108 4.061a1.125 1.125 0 01-1.683-.977V8.69z"
-                />
-              </svg>
-              スキップ
-            </Button>
+                <Button
+                  variant="outline"
+                  size="lg"
+                  onClick={startEditing}
+                  disabled={isProcessing}
+                  className="w-32 gap-2"
+                >
+                  <EditIcon className="size-5" />
+                  編集
+                </Button>
 
-            <Button
-              size="lg"
-              onClick={handleApprove}
-              disabled={isProcessing || current.reviewed}
-              className={cn(
-                "w-32 gap-2",
-                "bg-gradient-to-r from-emerald-600 to-emerald-700",
-                "hover:from-emerald-500 hover:to-emerald-600"
-              )}
-            >
-              <svg
-                className="size-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M4.5 12.75l6 6 9-13.5"
-                />
-              </svg>
-              承認
-            </Button>
+                <Button
+                  variant="outline"
+                  size="lg"
+                  onClick={handleSkip}
+                  disabled={isProcessing}
+                  className="w-32 gap-2"
+                >
+                  <svg
+                    className="size-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M3 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 010 1.954l-7.108 4.061A1.125 1.125 0 013 16.811V8.69zM12.75 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 010 1.954l-7.108 4.061a1.125 1.125 0 01-1.683-.977V8.69z"
+                    />
+                  </svg>
+                  スキップ
+                </Button>
+
+                <Button
+                  size="lg"
+                  onClick={handleApprove}
+                  disabled={isProcessing || current.reviewed}
+                  className={cn(
+                    "w-32 gap-2",
+                    "bg-gradient-to-r from-emerald-600 to-emerald-700",
+                    "hover:from-emerald-500 hover:to-emerald-600"
+                  )}
+                >
+                  <CheckIcon className="size-5" />
+                  承認
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </div>

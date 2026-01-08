@@ -8,6 +8,7 @@ import {
   fetchStats,
   approveAnnotations,
   deleteAnnotations,
+  updateAnnotation,
 } from "./actions";
 import { ReviewStats } from "./components/review-stats";
 import { ReviewFilters } from "./components/review-filters";
@@ -16,6 +17,7 @@ import { QuickReviewModal } from "./components/quick-review-modal";
 import type {
   AnnotationWithFrame,
   AnnotationReviewStats,
+  AnnotationUpdateRequest,
 } from "@/types/annotation-review";
 import type { Label } from "@/types/label";
 
@@ -251,6 +253,47 @@ export function ReviewClient({
       }
     },
     [projectId, annotations]
+  );
+
+  // Single item update (bbox position/size, label)
+  const handleSingleUpdate = useCallback(
+    async (annotation: AnnotationWithFrame, data: AnnotationUpdateRequest) => {
+      setError(null);
+      const result = await updateAnnotation(
+        projectId,
+        annotation.video_id,
+        annotation.frame_id,
+        annotation.id,
+        data
+      );
+
+      if (result.error) {
+        setError(result.error);
+      } else if (result.annotation) {
+        // Find updated label info if label was changed
+        const updatedLabel = data.label_id
+          ? labels.find((l) => l.id === data.label_id)
+          : null;
+
+        setAnnotations((prev) =>
+          prev.map((a) =>
+            a.id === annotation.id
+              ? {
+                  ...a,
+                  bbox_x: data.bbox_x ?? a.bbox_x,
+                  bbox_y: data.bbox_y ?? a.bbox_y,
+                  bbox_width: data.bbox_width ?? a.bbox_width,
+                  bbox_height: data.bbox_height ?? a.bbox_height,
+                  label_id: data.label_id ?? a.label_id,
+                  label_name: updatedLabel?.name ?? a.label_name,
+                  label_color: updatedLabel?.color ?? a.label_color,
+                }
+              : a
+          )
+        );
+      }
+    },
+    [projectId, labels]
   );
 
   // Bulk approve
@@ -621,9 +664,11 @@ export function ReviewClient({
         <QuickReviewModal
           annotations={annotations}
           projectId={projectId}
+          labels={labels}
           initialIndex={quickReviewIndex}
           onApprove={handleSingleApprove}
           onDelete={handleSingleDelete}
+          onUpdate={handleSingleUpdate}
           onClose={handleCloseQuickReview}
         />
       ) : null}
