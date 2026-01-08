@@ -18,6 +18,7 @@ interface UseAnnotationHistoryReturn {
       | BoundingBoxData[]
       | ((prev: BoundingBoxData[]) => BoundingBoxData[])
   ) => void;
+  resetAnnotations: (annotations: BoundingBoxData[]) => void;
   pushHistory: () => void;
   undo: () => void;
   redo: () => void;
@@ -59,6 +60,16 @@ export function useAnnotationHistory(
     },
     []
   );
+
+  // Reset annotations completely (clears history)
+  // Used when loading new frame or after image dimensions are known
+  const resetAnnotations = useCallback((annotations: BoundingBoxData[]) => {
+    setHistory({
+      past: [],
+      present: annotations,
+      future: [],
+    });
+  }, []);
 
   // Push current state to history (call before making changes)
   // This creates a snapshot that can be undone
@@ -110,6 +121,7 @@ export function useAnnotationHistory(
   return {
     annotations: history.present,
     setAnnotations,
+    resetAnnotations,
     pushHistory,
     undo,
     redo,

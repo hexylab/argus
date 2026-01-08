@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import type { FrameDetail, Frame } from "@/types/frame";
 import type { Label } from "@/types/label";
-import type { Annotation, BoundingBoxData } from "@/types/annotation";
+import type { BoundingBoxData } from "@/types/annotation";
+import type { NormalizedAnnotation } from "@/components/annotation/AnnotationCanvas";
 import { LabelSidebar } from "./components/label-sidebar";
 import { SaveIndicator, type SaveStatus } from "./components/save-indicator";
 import { saveAnnotationsAction, fetchFrameWithAnnotations } from "./actions";
@@ -49,32 +50,24 @@ const AnnotationCanvas = dynamic(
   }
 );
 
+// Server annotation type (from API)
+interface ServerAnnotation {
+  id: string;
+  label_id: string;
+  bbox_x: number;
+  bbox_y: number;
+  bbox_width: number;
+  bbox_height: number;
+  source?: string;
+}
+
 interface AnnotationClientProps {
   frame: FrameDetail;
   frames: Frame[];
   labels: Label[];
-  initialAnnotations: Annotation[];
+  initialAnnotations: ServerAnnotation[];
   projectId: string;
   videoId: string;
-}
-
-function convertToPixelCoords(
-  annotation: Annotation,
-  imageWidth: number,
-  imageHeight: number,
-  labels: Label[]
-): BoundingBoxData {
-  const label = labels.find((l) => l.id === annotation.label_id);
-  return {
-    id: annotation.id,
-    x: annotation.bbox_x * imageWidth,
-    y: annotation.bbox_y * imageHeight,
-    width: annotation.bbox_width * imageWidth,
-    height: annotation.bbox_height * imageHeight,
-    labelId: annotation.label_id,
-    labelName: label?.name ?? "Unknown",
-    labelColor: label?.color ?? "#808080",
-  };
 }
 
 function convertToNormalizedCoords(
@@ -92,6 +85,20 @@ function convertToNormalizedCoords(
   };
 }
 
+// Convert server annotations to the format expected by AnnotationCanvas
+function toNormalizedAnnotations(
+  annotations: ServerAnnotation[]
+): NormalizedAnnotation[] {
+  return annotations.map((a) => ({
+    id: a.id,
+    label_id: a.label_id,
+    bbox_x: a.bbox_x,
+    bbox_y: a.bbox_y,
+    bbox_width: a.bbox_width,
+    bbox_height: a.bbox_height,
+  }));
+}
+
 export function AnnotationClient({
   frame: initialFrame,
   frames,
@@ -105,7 +112,7 @@ export function AnnotationClient({
   // Current frame state (can be updated client-side)
   const [currentFrame, setCurrentFrame] = useState<FrameDetail>(initialFrame);
   const [currentAnnotationsRaw, setCurrentAnnotationsRaw] =
-    useState<Annotation[]>(initialAnnotations);
+    useState<ServerAnnotation[]>(initialAnnotations);
 
   // Track the initial frame ID to detect prop changes
   const initialFrameIdRef = useRef(initialFrame.id);
@@ -119,20 +126,19 @@ export function AnnotationClient({
     }
   }, [initialFrame, initialAnnotations]);
 
-  const imageWidth = currentFrame.width ?? 1920;
-  const imageHeight = currentFrame.height ?? 1080;
+  // Actual image dimensions (set by AnnotationCanvas after image loads)
+  const [actualImageDimensions, setActualImageDimensions] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
 
-  // Convert annotations to pixel coordinates
-  const initialBboxData = useMemo(
-    () =>
-      currentAnnotationsRaw.map((a) =>
-        convertToPixelCoords(a, imageWidth, imageHeight, labels)
-      ),
-    [currentAnnotationsRaw, imageWidth, imageHeight, labels]
+  // Convert server annotations to normalized format for AnnotationCanvas
+  const normalizedAnnotations = useMemo(
+    () => toNormalizedAnnotations(currentAnnotationsRaw),
+    [currentAnnotationsRaw]
   );
 
-  const [annotations, setAnnotations] =
-    useState<BoundingBoxData[]>(initialBboxData);
+  const [annotations, setAnnotations] = useState<BoundingBoxData[]>([]);
   const [selectedLabelId, setSelectedLabelId] = useState<string | null>(
     labels[0]?.id ?? null
   );
@@ -140,19 +146,28 @@ export function AnnotationClient({
   const [isSaving, setIsSaving] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
 
-  const lastSavedRef = useRef<string>(JSON.stringify(initialBboxData));
+  const lastSavedRef = useRef<string>("[]");
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const currentFrameIdRef = useRef(currentFrame.id);
 
-  // Update annotations when frame changes
+  // Reset dimensions when frame changes
   useEffect(() => {
     if (currentFrame.id !== currentFrameIdRef.current) {
       currentFrameIdRef.current = currentFrame.id;
-      setAnnotations(initialBboxData);
-      lastSavedRef.current = JSON.stringify(initialBboxData);
+      setActualImageDimensions(null);
+      setAnnotations([]);
+      lastSavedRef.current = "[]";
       setSaveStatus("saved");
     }
-  }, [currentFrame.id, initialBboxData]);
+  }, [currentFrame.id]);
+
+  // Handle image dimensions from AnnotationCanvas
+  const handleImageDimensionsChange = useCallback(
+    (width: number, height: number) => {
+      setActualImageDimensions({ width, height });
+    },
+    []
+  );
 
   // Frame preloader
   const { getPreloadedFrame, isPreloaded } = useFramePreloader({
@@ -184,6 +199,12 @@ export function AnnotationClient({
   const save = useCallback(async () => {
     if (isSaving) return;
 
+    // Can't save without knowing actual image dimensions
+    if (!actualImageDimensions) {
+      console.warn("Cannot save: image dimensions not yet known");
+      return;
+    }
+
     const current = JSON.stringify(annotations);
     if (current === lastSavedRef.current) {
       setSaveStatus("saved");
@@ -194,15 +215,19 @@ export function AnnotationClient({
     setSaveStatus("saving");
 
     try {
-      const normalizedAnnotations = annotations.map((bbox) =>
-        convertToNormalizedCoords(bbox, imageWidth, imageHeight)
+      const normalizedAnns = annotations.map((bbox) =>
+        convertToNormalizedCoords(
+          bbox,
+          actualImageDimensions.width,
+          actualImageDimensions.height
+        )
       );
 
       const result = await saveAnnotationsAction(
         projectId,
         videoId,
         currentFrame.id,
-        normalizedAnnotations
+        normalizedAnns
       );
 
       if (result.error) {
@@ -220,8 +245,7 @@ export function AnnotationClient({
     }
   }, [
     annotations,
-    imageWidth,
-    imageHeight,
+    actualImageDimensions,
     projectId,
     videoId,
     currentFrame.id,
@@ -402,8 +426,9 @@ export function AnnotationClient({
             initialWidth={currentFrame.width ?? undefined}
             initialHeight={currentFrame.height ?? undefined}
             labels={labels}
-            initialAnnotations={initialBboxData}
+            normalizedAnnotations={normalizedAnnotations}
             onChange={handleAnnotationsChange}
+            onImageDimensionsChange={handleImageDimensionsChange}
             selectedLabelId={selectedLabelId}
           />
         </div>

@@ -2,9 +2,9 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { fetchProject, fetchVideos } from "./actions";
+import { fetchProject, fetchVideos, fetchLabels } from "./actions";
 import { VideoList } from "./components/video-list";
-import { VideoUploader } from "./components/video-uploader";
+import { DataUploader } from "./components/data-uploader";
 import { cn } from "@/lib/utils";
 
 interface ProjectPageProps {
@@ -193,9 +193,10 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
     redirect("/login");
   }
 
-  const [projectResult, videosResult] = await Promise.all([
+  const [projectResult, videosResult, labelsResult] = await Promise.all([
     fetchProject(projectId),
     fetchVideos(projectId),
+    fetchLabels(projectId),
   ]);
 
   if (projectResult.error || !projectResult.project) {
@@ -204,6 +205,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
 
   const project = projectResult.project;
   const videos = videosResult.videos ?? [];
+  const labels = labelsResult.labels ?? [];
   const status = statusConfig[project.status];
 
   const formattedDate = new Date(project.created_at).toLocaleDateString(
@@ -304,15 +306,15 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
       {/* Divider */}
       <div className="border-t border-border" />
 
-      {/* Video Upload Section */}
+      {/* Data Upload Section */}
       <section className="space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <FilmIcon className="size-5 text-muted-foreground" />
             <div>
-              <h2 className="text-lg font-semibold tracking-tight">映像</h2>
+              <h2 className="text-lg font-semibold tracking-tight">データ</h2>
               <p className="text-sm text-muted-foreground">
-                アノテーションする映像をアップロード
+                映像またはデータセット（ZIP）をドラッグ＆ドロップ
               </p>
             </div>
           </div>
@@ -323,7 +325,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
           ) : null}
         </div>
 
-        <VideoUploader projectId={projectId} />
+        <DataUploader projectId={projectId} existingLabels={labels} />
       </section>
 
       {/* Video List Section */}

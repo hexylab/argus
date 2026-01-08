@@ -297,3 +297,18 @@ def generate_thumbnail_s3_key(
         S3 object key for the thumbnail.
     """
     return f"projects/{project_id}/videos/{video_id}/thumbnails/{frame_number:06d}.jpg"
+
+
+def generate_import_s3_key(project_id: UUID, import_job_id: UUID, filename: str) -> str:
+    """
+    Generate S3 object key for an import ZIP file.
+
+    Args:
+        project_id: UUID of the project.
+        import_job_id: UUID of the import job.
+        filename: Original filename.
+
+    Returns:
+        S3 object key for the import file.
+    """
+    return f"projects/{project_id}/imports/{import_job_id}/{filename}"

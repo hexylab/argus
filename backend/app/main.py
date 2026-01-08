@@ -10,6 +10,7 @@ from app.api.v1 import (
     auto_annotation_router,
     export_router,
     frames_router,
+    imports_router,
     labels_router,
     projects_router,
     search_router,
@@ -44,6 +45,7 @@ app.include_router(annotations_router, prefix="/api/v1")
 app.include_router(annotations_review_router, prefix="/api/v1")
 app.include_router(auto_annotation_router, prefix="/api/v1")
 app.include_router(export_router, prefix="/api/v1")
+app.include_router(imports_router, prefix="/api/v1")
 app.include_router(search_router, prefix="/api/v1")
 
 
