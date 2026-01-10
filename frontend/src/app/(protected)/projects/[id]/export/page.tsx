@@ -1,7 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import { fetchProject } from "../actions";
 import { ExportForm } from "./components/export-form";
 
@@ -9,44 +7,6 @@ interface ExportPageProps {
   params: Promise<{
     id: string;
   }>;
-}
-
-// Breadcrumb separator
-function ChevronRight({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-      strokeWidth={1.5}
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M8.25 4.5l7.5 7.5-7.5 7.5"
-      />
-    </svg>
-  );
-}
-
-// Back arrow icon
-function ArrowLeftIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-      strokeWidth={2}
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"
-      />
-    </svg>
-  );
 }
 
 // Export icon for page header
@@ -90,53 +50,25 @@ export default async function ExportPage({ params }: ExportPageProps) {
 
   return (
     <div className="space-y-8">
-      {/* Breadcrumb Navigation */}
-      <nav className="flex items-center gap-1.5 text-sm">
-        <Link
-          href="/dashboard"
-          className="text-muted-foreground transition-colors hover:text-foreground"
-        >
-          ダッシュボード
-        </Link>
-        <ChevronRight className="size-4 text-muted-foreground/50" />
-        <Link
-          href={`/projects/${projectId}`}
-          className="text-muted-foreground transition-colors hover:text-foreground"
-        >
-          {project.name}
-        </Link>
-        <ChevronRight className="size-4 text-muted-foreground/50" />
-        <span className="font-medium text-foreground">エクスポート</span>
-      </nav>
-
       {/* Page Header */}
-      <header className="flex items-start justify-between gap-6">
-        <div className="space-y-3">
-          <div className="flex items-center gap-4">
-            <div className="flex size-12 items-center justify-center rounded-xl bg-foreground/5">
-              <ExportIcon className="size-6 text-foreground/70" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">
-                データエクスポート
-              </h1>
-              <p className="mt-0.5 text-sm text-muted-foreground">
-                {project.name}
-              </p>
-            </div>
+      <header className="space-y-3">
+        <div className="flex items-center gap-4">
+          <div className="flex size-12 items-center justify-center rounded-xl bg-foreground/5">
+            <ExportIcon className="size-6 text-foreground/70" />
           </div>
-          <p className="text-muted-foreground">
-            アノテーションデータを機械学習フレームワークで利用可能な形式でエクスポートします。COCO
-            または YOLO フォーマットを選択してください。
-          </p>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">
+              データエクスポート
+            </h1>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              {project.name}
+            </p>
+          </div>
         </div>
-
-        <Link href={`/projects/${projectId}`}>
-          <Button variant="outline" className="gap-2">
-            <ArrowLeftIcon className="size-4" />
-            戻る
-          </Button>
-        </Link>
+        <p className="text-muted-foreground">
+          アノテーションデータを機械学習フレームワークで利用可能な形式でエクスポートします。COCO
+          または YOLO フォーマットを選択してください。
+        </p>
       </header>
 
       {/* Divider */}
