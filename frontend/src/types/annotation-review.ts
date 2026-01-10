@@ -61,3 +61,12 @@ export interface AnnotationFilterParams {
   skip?: number;
   limit?: number;
 }
+
+export interface AnnotationUpdateRequest {
+  bbox_x?: number;
+  bbox_y?: number;
+  bbox_width?: number;
+  bbox_height?: number;
+  label_id?: string;
+  reviewed?: boolean;
+}
