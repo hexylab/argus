@@ -86,7 +86,6 @@ export function BoundingBox({
   const labelFontSize = BASE_LABEL_FONT_SIZE / scale;
   const dimensionLabelHeight = BASE_DIMENSION_LABEL_HEIGHT / scale;
   const dimensionLabelPadding = BASE_DIMENSION_LABEL_PADDING / scale;
-  const anchorSize = BASE_ANCHOR_SIZE / scale;
   const hitStrokeWidth = BASE_HIT_STROKE_WIDTH / scale;
 
   // Attach transformer when selected
@@ -339,11 +338,13 @@ export function BoundingBox({
             "bottom-center",
             "bottom-right",
           ]}
-          anchorSize={anchorSize}
-          anchorCornerRadius={3 / scale}
+          anchorSize={BASE_ANCHOR_SIZE}
+          anchorScaleX={1 / scale}
+          anchorScaleY={1 / scale}
+          anchorCornerRadius={3}
           anchorStroke={data.labelColor}
           anchorFill="white"
-          anchorStrokeWidth={1.5 / scale}
+          anchorStrokeWidth={1.5}
           borderStroke={data.labelColor}
           borderStrokeWidth={0}
           borderDash={[]}

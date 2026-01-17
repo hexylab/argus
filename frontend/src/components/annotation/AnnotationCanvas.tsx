@@ -585,24 +585,32 @@ export function AnnotationCanvas({
           <ImageLayer imageUrl={imageUrl} onLoad={handleImageLoad} />
         </Layer>
 
-        {/* Annotations layer */}
+        {/* Annotations layer - selected annotation rendered last (on top) */}
         <Layer>
-          {annotations.map((annotation) => (
-            <BoundingBox
-              key={annotation.id}
-              data={annotation}
-              isSelected={annotation.id === selectedId}
-              imageWidth={imageSize.width}
-              imageHeight={imageSize.height}
-              scale={scale}
-              showLabel={showAllLabels || annotation.id === selectedId}
-              onSelect={handleBboxSelect}
-              onTransformStart={handleTransformStart}
-              onTransformEnd={handleTransformEnd}
-              onDragStart={handleTransformStart}
-              onDragEnd={handleDragBboxEnd}
-            />
-          ))}
+          {annotations
+            .slice()
+            .sort((a, b) => {
+              // Selected annotation should be rendered last (on top)
+              if (a.id === selectedId) return 1;
+              if (b.id === selectedId) return -1;
+              return 0;
+            })
+            .map((annotation) => (
+              <BoundingBox
+                key={annotation.id}
+                data={annotation}
+                isSelected={annotation.id === selectedId}
+                imageWidth={imageSize.width}
+                imageHeight={imageSize.height}
+                scale={scale}
+                showLabel={showAllLabels || annotation.id === selectedId}
+                onSelect={handleBboxSelect}
+                onTransformStart={handleTransformStart}
+                onTransformEnd={handleTransformEnd}
+                onDragStart={handleTransformStart}
+                onDragEnd={handleDragBboxEnd}
+              />
+            ))}
         </Layer>
 
         {/* Drawing layer */}
