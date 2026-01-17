@@ -34,7 +34,7 @@ export default async function ProjectLayout({
   const project = projectResult.project;
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] -mx-6 -mt-6 lg:-mx-10 lg:-mt-8">
+    <div className="flex h-full">
       {/* Sidebar */}
       <WorkflowSidebar projectId={projectId} projectName={project.name} />
 

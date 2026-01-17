@@ -119,8 +119,9 @@ export default async function AnnotationPage({ params }: AnnotationPageProps) {
   const labels = labelsResult.labels ?? [];
   const annotations = annotationsResult.annotations ?? [];
 
+  // Annotation page uses full height with no padding and no scrollbar
   return (
-    <div className="flex h-[calc(100vh-4rem)] flex-col">
+    <div className="-m-6 lg:-m-8 flex h-screen flex-col overflow-hidden">
       {/* Header */}
       <div className="flex-none border-b bg-background/95 px-6 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="flex items-center justify-between">
