@@ -26,7 +26,10 @@ interface UseFramePreloaderReturn {
   isPreloaded: (frameId: string) => boolean;
 }
 
-const PRELOAD_COUNT = 3; // Number of frames to preload in each direction
+// Generous preloading in both directions
+const PRELOAD_COUNT = 25;
+// Limit concurrent requests to avoid overwhelming the server
+const MAX_CONCURRENT_PRELOADS = 3;
 
 export function useFramePreloader({
   frames,
@@ -37,75 +40,111 @@ export function useFramePreloader({
 }: UseFramePreloaderProps): UseFramePreloaderReturn {
   const cacheRef = useRef<Map<string, PreloadedFrame>>(new Map());
   const preloadingRef = useRef<Set<string>>(new Set());
+  const preloadQueueRef = useRef<string[]>([]);
 
   // Get current frame index
   const currentIndex = frames.findIndex((f) => f.id === currentFrameId);
 
-  // Preload a single frame
-  const preloadFrame = useCallback(
-    async (frameId: string) => {
+  // Process preload queue with concurrency limit
+  const processQueue = useCallback(async () => {
+    while (
+      preloadQueueRef.current.length > 0 &&
+      preloadingRef.current.size < MAX_CONCURRENT_PRELOADS
+    ) {
+      const frameId = preloadQueueRef.current.shift();
+      if (!frameId) continue;
+
       // Skip if already cached or currently preloading
       if (cacheRef.current.has(frameId) || preloadingRef.current.has(frameId)) {
-        return;
+        continue;
       }
 
       preloadingRef.current.add(frameId);
 
-      try {
-        const result = await fetchFrameData(projectId, videoId, frameId);
+      // Start preload without awaiting (fire and forget for concurrency)
+      fetchFrameData(projectId, videoId, frameId)
+        .then((result) => {
+          if (result.frame) {
+            // Cache the frame data
+            cacheRef.current.set(frameId, {
+              frame: result.frame,
+              annotations: result.annotations ?? [],
+            });
 
-        if (result.frame) {
-          // Cache the frame data
-          cacheRef.current.set(frameId, {
-            frame: result.frame,
-            annotations: result.annotations ?? [],
-          });
+            // Preload the image into browser cache
+            const img = new Image();
+            img.src = result.frame.image_url;
+          }
+        })
+        .catch((error) => {
+          console.error(`Failed to preload frame ${frameId}:`, error);
+        })
+        .finally(() => {
+          preloadingRef.current.delete(frameId);
+          // Process next item in queue
+          processQueue();
+        });
+    }
+  }, [projectId, videoId, fetchFrameData]);
 
-          // Preload the image into browser cache
-          const img = new Image();
-          img.src = result.frame.image_url;
-        }
-      } catch (error) {
-        console.error(`Failed to preload frame ${frameId}:`, error);
-      } finally {
-        preloadingRef.current.delete(frameId);
-      }
+  // Add frames to preload queue (sorted by distance from current)
+  const queuePreload = useCallback(
+    (frameIds: string[]) => {
+      // Filter out already cached or queued frames
+      const newFrames = frameIds.filter(
+        (id) =>
+          !cacheRef.current.has(id) &&
+          !preloadingRef.current.has(id) &&
+          !preloadQueueRef.current.includes(id)
+      );
+
+      // Add to queue
+      preloadQueueRef.current.push(...newFrames);
+
+      // Start processing
+      processQueue();
     },
-    [projectId, videoId, fetchFrameData]
+    [processQueue]
   );
 
   // Preload adjacent frames when current frame changes
   useEffect(() => {
     if (currentIndex === -1 || frames.length === 0) return;
 
-    // Determine frames to preload
-    const framesToPreload: string[] = [];
+    // Clear existing queue and reprioritize based on new position
+    preloadQueueRef.current = [];
 
-    // Add next frames
+    // Build list of frames sorted by distance from current position
+    // This ensures closest frames are loaded first
+    const framesToPreload: { id: string; distance: number }[] = [];
+
     for (let i = 1; i <= PRELOAD_COUNT; i++) {
-      const nextIndex = currentIndex + i;
-      if (nextIndex < frames.length) {
-        framesToPreload.push(frames[nextIndex].id);
+      // Next frames (slightly prioritized over previous)
+      if (currentIndex + i < frames.length) {
+        framesToPreload.push({
+          id: frames[currentIndex + i].id,
+          distance: i - 0.1, // Slight priority for forward direction
+        });
+      }
+      // Previous frames
+      if (currentIndex - i >= 0) {
+        framesToPreload.push({
+          id: frames[currentIndex - i].id,
+          distance: i,
+        });
       }
     }
 
-    // Add previous frames
-    for (let i = 1; i <= PRELOAD_COUNT; i++) {
-      const prevIndex = currentIndex - i;
-      if (prevIndex >= 0) {
-        framesToPreload.push(frames[prevIndex].id);
-      }
-    }
+    // Sort by distance (closest first)
+    framesToPreload.sort((a, b) => a.distance - b.distance);
 
-    // Preload frames in priority order (closer frames first)
-    for (const frameId of framesToPreload) {
-      preloadFrame(frameId);
-    }
-  }, [currentIndex, frames, preloadFrame]);
+    // Queue all frames for preload
+    queuePreload(framesToPreload.map((f) => f.id));
+  }, [currentIndex, frames, queuePreload]);
 
   // Clean up old cache entries to prevent memory issues
   useEffect(() => {
-    const maxCacheSize = PRELOAD_COUNT * 2 + 5; // Keep a reasonable cache size
+    const maxCacheSize = PRELOAD_COUNT * 2 + 10;
 
     if (cacheRef.current.size > maxCacheSize) {
       const currentCacheKeys = Array.from(cacheRef.current.keys());

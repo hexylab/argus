@@ -144,7 +144,6 @@ export function AnnotationClient({
   );
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
   const [isSaving, setIsSaving] = useState(false);
-  const [isTransitioning, setIsTransitioning] = useState(false);
 
   const lastSavedRef = useRef<string>("[]");
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -274,30 +273,23 @@ export function AnnotationClient({
 
   // Navigate to a frame (client-side if preloaded, router otherwise)
   const navigateToFrame = useCallback(
-    async (frameId: string) => {
-      if (frameId === currentFrame.id || isTransitioning) return;
+    (frameId: string) => {
+      if (frameId === currentFrame.id) return;
 
-      // Save current work first if unsaved
+      // Trigger save in background (don't wait)
       if (saveStatus === "unsaved") {
-        await save();
+        save();
       }
 
       const preloaded = getPreloadedFrame(frameId);
       if (preloaded) {
-        // Client-side navigation with preloaded data
-        setIsTransitioning(true);
+        // Client-side navigation with preloaded data - instant switch
+        setCurrentFrame(preloaded.frame);
+        setCurrentAnnotationsRaw(preloaded.annotations);
 
-        // Small delay for smooth transition effect
-        setTimeout(() => {
-          setCurrentFrame(preloaded.frame);
-          setCurrentAnnotationsRaw(preloaded.annotations);
-
-          // Update URL without full navigation
-          const newUrl = `/projects/${projectId}/videos/${videoId}/frames/${frameId}`;
-          window.history.pushState(null, "", newUrl);
-
-          setIsTransitioning(false);
-        }, 50);
+        // Update URL without full navigation
+        const newUrl = `/projects/${projectId}/videos/${videoId}/frames/${frameId}`;
+        window.history.pushState(null, "", newUrl);
       } else {
         // Fallback to router navigation
         router.push(
@@ -307,7 +299,6 @@ export function AnnotationClient({
     },
     [
       currentFrame.id,
-      isTransitioning,
       saveStatus,
       save,
       getPreloadedFrame,
@@ -388,38 +379,32 @@ export function AnnotationClient({
 
   return (
     <div className="flex flex-col h-full">
-      {/* Top bar: Navigator + Save indicator */}
-      <div className="flex-none border-b bg-background px-4 py-2">
-        <div className="flex items-center justify-between">
+      {/* Unified top bar: Navigator + Frame strip + Save indicator */}
+      <div className="flex-none border-b bg-background px-2 py-1">
+        <div className="flex items-center gap-2">
           <FrameNavigatorClient
             frames={frames}
             currentIndex={currentIndex}
-            disabled={isSaving || isTransitioning}
+            disabled={isSaving}
             onNavigate={navigateToFrame}
             isPreloaded={isPreloaded}
           />
+          <div className="flex-1 min-w-0">
+            <FrameStripClient
+              frames={frames}
+              currentFrameId={currentFrame.id}
+              onNavigate={navigateToFrame}
+              isPreloaded={isPreloaded}
+            />
+          </div>
           <SaveIndicator status={saveStatus} onSave={save} />
         </div>
-      </div>
-
-      {/* Frame strip */}
-      <div className="flex-none border-b bg-muted/30">
-        <FrameStripClient
-          frames={frames}
-          currentFrameId={currentFrame.id}
-          onNavigate={navigateToFrame}
-          isPreloaded={isPreloaded}
-        />
       </div>
 
       {/* Main content: Canvas + Sidebar */}
       <div className="flex-1 flex min-h-0">
         {/* Canvas area */}
-        <div
-          className={`flex-1 min-w-0 transition-opacity duration-150 ${
-            isTransitioning ? "opacity-50" : "opacity-100"
-          }`}
-        >
+        <div className="flex-1 min-w-0">
           <AnnotationCanvas
             key={currentFrame.id}
             imageUrl={currentFrame.image_url}
@@ -515,13 +500,13 @@ function FrameNavigatorClient({
   const nextPreloaded = hasNext && isPreloaded(frames[currentIndex + 1].id);
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-1 flex-shrink-0">
       <button
         type="button"
         onClick={goToPrevious}
         disabled={!hasPrevious || disabled}
         className={`
-          inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium rounded-md
+          inline-flex items-center justify-center size-8 rounded-md
           border transition-all duration-200
           ${
             !hasPrevious || disabled
@@ -531,6 +516,7 @@ function FrameNavigatorClient({
                 : "bg-background hover:bg-accent text-foreground border-border"
           }
         `}
+        title="前へ (D)"
       >
         <svg
           className="size-4"
@@ -545,14 +531,10 @@ function FrameNavigatorClient({
             d="M15.75 19.5L8.25 12l7.5-7.5"
           />
         </svg>
-        <span className="hidden sm:inline">前へ</span>
-        <kbd className="hidden sm:inline ml-1 px-1 py-0.5 text-[10px] bg-muted rounded font-mono">
-          D
-        </kbd>
       </button>
 
-      <span className="text-sm text-muted-foreground min-w-[80px] text-center tabular-nums">
-        {currentIndex + 1} / {frames.length}
+      <span className="text-xs text-muted-foreground min-w-[50px] text-center tabular-nums">
+        {currentIndex + 1}/{frames.length}
       </span>
 
       <button
@@ -560,7 +542,7 @@ function FrameNavigatorClient({
         onClick={goToNext}
         disabled={!hasNext || disabled}
         className={`
-          inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium rounded-md
+          inline-flex items-center justify-center size-8 rounded-md
           border transition-all duration-200
           ${
             !hasNext || disabled
@@ -570,11 +552,8 @@ function FrameNavigatorClient({
                 : "bg-background hover:bg-accent text-foreground border-border"
           }
         `}
+        title="次へ (F)"
       >
-        <span className="hidden sm:inline">次へ</span>
-        <kbd className="hidden sm:inline ml-1 px-1 py-0.5 text-[10px] bg-muted rounded font-mono">
-          F
-        </kbd>
         <svg
           className="size-4"
           fill="none"
@@ -615,8 +594,8 @@ function FrameStripClient({
     if (!containerRef.current || currentIndex === -1) return;
 
     const container = containerRef.current;
-    const thumbnailWidth = 80;
-    const gap = 8;
+    const thumbnailWidth = 48; // w-12 = 3rem = 48px
+    const gap = 4; // gap-1 = 0.25rem = 4px
     const itemWidth = thumbnailWidth + gap;
     const containerWidth = container.offsetWidth;
 
@@ -625,13 +604,13 @@ function FrameStripClient({
 
     container.scrollTo({
       left: Math.max(0, targetScroll),
-      behavior: "smooth",
+      behavior: "instant",
     });
   }, [currentIndex]);
 
   if (frames.length === 0) {
     return (
-      <div className="h-20 flex items-center justify-center text-muted-foreground text-sm">
+      <div className="h-10 flex items-center justify-center text-muted-foreground text-xs">
         フレームがありません
       </div>
     );
@@ -640,7 +619,7 @@ function FrameStripClient({
   return (
     <div
       ref={containerRef}
-      className="flex gap-2 overflow-x-auto py-2 px-4 scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent"
+      className="flex gap-1 overflow-x-auto py-1 scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent"
       style={{ scrollbarWidth: "thin" }}
     >
       {frames.map((frame) => {
@@ -653,13 +632,13 @@ function FrameStripClient({
             type="button"
             onClick={() => onNavigate(frame.id)}
             className={`
-              relative flex-shrink-0 w-20 h-14 rounded-md overflow-hidden
-              border-2 transition-all duration-200 group
+              relative flex-shrink-0 w-12 h-8 rounded overflow-hidden
+              border transition-all duration-200 group
               ${
                 isCurrent
-                  ? "border-primary ring-2 ring-primary/30 scale-105"
+                  ? "border-primary ring-1 ring-primary/30"
                   : preloaded
-                    ? "border-border/50 hover:border-primary/50 hover:scale-102"
+                    ? "border-border/50 hover:border-primary/50"
                     : "border-transparent hover:border-border"
               }
             `}
@@ -674,31 +653,22 @@ function FrameStripClient({
               />
             ) : (
               <div className="w-full h-full bg-muted flex items-center justify-center">
-                <span className="text-xs text-muted-foreground">
+                <span className="text-[8px] text-muted-foreground">
                   {frame.frame_number}
                 </span>
               </div>
             )}
 
-            {/* Frame number overlay */}
-            <div
-              className={`
-              absolute bottom-0 left-0 right-0 px-1 py-0.5
-              text-[10px] font-medium text-center
-              transition-colors duration-200
-              ${
-                isCurrent
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-black/60 text-white group-hover:bg-black/80"
-              }
-            `}
-            >
-              {frame.frame_number}
-            </div>
+            {/* Frame number overlay - only on current */}
+            {isCurrent ? (
+              <div className="absolute bottom-0 left-0 right-0 bg-primary text-primary-foreground text-[8px] font-medium text-center">
+                {frame.frame_number}
+              </div>
+            ) : null}
 
             {/* Preload indicator */}
             {preloaded && !isCurrent ? (
-              <div className="absolute top-1 right-1 size-1.5 rounded-full bg-green-500" />
+              <div className="absolute top-0.5 right-0.5 size-1 rounded-full bg-green-500" />
             ) : null}
           </button>
         );
