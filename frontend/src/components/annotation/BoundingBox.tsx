@@ -78,9 +78,11 @@ export function BoundingBox({
     });
   }, [data.x, data.y, data.width, data.height]);
 
-  // Calculate scale-independent sizes (divided by scale to maintain visual consistency)
-  const strokeWidth =
-    (isSelected ? BASE_STROKE_WIDTH_SELECTED : BASE_STROKE_WIDTH) / scale;
+  // strokeScaleEnabled={false} により、ストロークはスケール変換に影響されないため
+  // 手動でのスケール補正は不要（二重補正を避ける）
+  const strokeWidth = isSelected
+    ? BASE_STROKE_WIDTH_SELECTED
+    : BASE_STROKE_WIDTH;
   const labelHeight = BASE_LABEL_HEIGHT / scale;
   const labelPaddingX = BASE_LABEL_PADDING_X / scale;
   const labelFontSize = BASE_LABEL_FONT_SIZE / scale;
