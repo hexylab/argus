@@ -27,8 +27,8 @@ interface BoundingBoxProps {
 }
 
 const MIN_SIZE = 10;
-// Base stroke widths - selected is more prominent, non-selected is subtle (CVAT-inspired)
-const BASE_STROKE_WIDTH = 1.25;
+// Base stroke widths - selected is more prominent, non-selected is subtle
+const BASE_STROKE_WIDTH = 1.0;
 const BASE_STROKE_WIDTH_SELECTED = 2.5;
 const BASE_LABEL_HEIGHT = 20;
 const BASE_LABEL_PADDING_X = 6;
