@@ -214,23 +214,39 @@ export function BoundingBox({
     node.scaleX(1);
     node.scaleY(1);
 
-    const newWidth = Math.max(MIN_SIZE, node.width() * scaleX);
-    const newHeight = Math.max(MIN_SIZE, node.height() * scaleY);
+    // Calculate new dimensions with minimum size
+    let newWidth = Math.max(MIN_SIZE, node.width() * scaleX);
+    let newHeight = Math.max(MIN_SIZE, node.height() * scaleY);
 
-    // Clamp position
-    const clamped = clampPosition(node.x(), node.y(), newWidth, newHeight);
+    // Get current position
+    let newX = node.x();
+    let newY = node.y();
+
+    // Clamp size to image bounds
+    newWidth = Math.min(newWidth, imageWidth);
+    newHeight = Math.min(newHeight, imageHeight);
+
+    // Clamp position to keep box within image bounds
+    newX = Math.max(0, Math.min(newX, imageWidth - newWidth));
+    newY = Math.max(0, Math.min(newY, imageHeight - newHeight));
+
+    // Apply clamped values back to the node
+    node.x(newX);
+    node.y(newY);
+    node.width(newWidth);
+    node.height(newHeight);
 
     // Update live box
     setLiveBox({
-      x: clamped.x,
-      y: clamped.y,
+      x: newX,
+      y: newY,
       width: newWidth,
       height: newHeight,
     });
 
     onTransformEnd?.(data.id, {
-      x: clamped.x,
-      y: clamped.y,
+      x: newX,
+      y: newY,
       width: newWidth,
       height: newHeight,
     });
@@ -349,17 +365,11 @@ export function BoundingBox({
           borderStrokeWidth={0}
           borderDash={[]}
           boundBoxFunc={(oldBox, newBox) => {
-            // Enforce minimum size
+            // Only enforce minimum size here.
+            // Boundary clamping is handled in handleTransformEnd using local coordinates.
+            // Note: boundBoxFunc receives coordinates in stage (absolute) space,
+            // which doesn't match imageWidth/imageHeight (local space) when zoomed.
             if (newBox.width < MIN_SIZE || newBox.height < MIN_SIZE) {
-              return oldBox;
-            }
-            // Enforce image bounds
-            if (
-              newBox.x < 0 ||
-              newBox.y < 0 ||
-              newBox.x + newBox.width > imageWidth ||
-              newBox.y + newBox.height > imageHeight
-            ) {
               return oldBox;
             }
             return newBox;
