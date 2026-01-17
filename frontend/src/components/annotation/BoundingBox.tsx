@@ -325,6 +325,7 @@ export function BoundingBox({
         height={data.height}
         stroke={data.labelColor}
         strokeWidth={strokeWidth}
+        strokeScaleEnabled={false}
         fill="transparent"
         draggable
         onClick={() => onSelect(data.id)}
@@ -364,16 +365,7 @@ export function BoundingBox({
           borderStroke={data.labelColor}
           borderStrokeWidth={0}
           borderDash={[]}
-          boundBoxFunc={(oldBox, newBox) => {
-            // Only enforce minimum size here.
-            // Boundary clamping is handled in handleTransformEnd using local coordinates.
-            // Note: boundBoxFunc receives coordinates in stage (absolute) space,
-            // which doesn't match imageWidth/imageHeight (local space) when zoomed.
-            if (newBox.width < MIN_SIZE || newBox.height < MIN_SIZE) {
-              return oldBox;
-            }
-            return newBox;
-          }}
+          ignoreStroke={true}
         />
       ) : null}
     </>
