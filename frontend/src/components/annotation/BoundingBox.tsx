@@ -17,6 +17,8 @@ interface BoundingBoxProps {
   isSelected: boolean;
   imageWidth: number;
   imageHeight: number;
+  scale: number;
+  showLabel: boolean;
   onSelect: (id: string) => void;
   onTransformStart?: () => void;
   onTransformEnd?: (id: string, result: TransformResult) => void;
@@ -25,17 +27,24 @@ interface BoundingBoxProps {
 }
 
 const MIN_SIZE = 10;
-const LABEL_HEIGHT = 20;
-const LABEL_PADDING_X = 6;
-const LABEL_FONT_SIZE = 12;
-const DIMENSION_LABEL_HEIGHT = 18;
-const DIMENSION_LABEL_PADDING = 4;
+// Base values that will be divided by scale to maintain consistent visual size
+const BASE_STROKE_WIDTH = 2;
+const BASE_STROKE_WIDTH_SELECTED = 2.5;
+const BASE_LABEL_HEIGHT = 20;
+const BASE_LABEL_PADDING_X = 6;
+const BASE_LABEL_FONT_SIZE = 12;
+const BASE_DIMENSION_LABEL_HEIGHT = 18;
+const BASE_DIMENSION_LABEL_PADDING = 4;
+const BASE_ANCHOR_SIZE = 10;
+const BASE_HIT_STROKE_WIDTH = 10;
 
 export function BoundingBox({
   data,
   isSelected,
   imageWidth,
   imageHeight,
+  scale,
+  showLabel,
   onSelect,
   onTransformStart,
   onTransformEnd,
@@ -69,7 +78,16 @@ export function BoundingBox({
     });
   }, [data.x, data.y, data.width, data.height]);
 
-  const strokeWidth = isSelected ? 2.5 : 2;
+  // Calculate scale-independent sizes (divided by scale to maintain visual consistency)
+  const strokeWidth =
+    (isSelected ? BASE_STROKE_WIDTH_SELECTED : BASE_STROKE_WIDTH) / scale;
+  const labelHeight = BASE_LABEL_HEIGHT / scale;
+  const labelPaddingX = BASE_LABEL_PADDING_X / scale;
+  const labelFontSize = BASE_LABEL_FONT_SIZE / scale;
+  const dimensionLabelHeight = BASE_DIMENSION_LABEL_HEIGHT / scale;
+  const dimensionLabelPadding = BASE_DIMENSION_LABEL_PADDING / scale;
+  const anchorSize = BASE_ANCHOR_SIZE / scale;
+  const hitStrokeWidth = BASE_HIT_STROKE_WIDTH / scale;
 
   // Attach transformer when selected
   useEffect(() => {
@@ -219,56 +237,64 @@ export function BoundingBox({
     });
   };
 
-  // Calculate label width based on text
-  const labelWidth = data.labelName.length * 8 + LABEL_PADDING_X * 2;
+  // Calculate label width based on text (scale-independent)
+  const charWidth = 8 / scale;
+  const labelWidth = data.labelName.length * charWidth + labelPaddingX * 2;
 
   // Calculate label position (adjacent to bbox, no gap)
   const labelX = liveBox.x;
-  const labelY = liveBox.y - LABEL_HEIGHT;
+  const labelY = liveBox.y - labelHeight;
 
-  // Dimension label text during transform
+  // Dimension label text during transform (scale-independent)
   const dimensionText = `${Math.round(liveBox.width)} × ${Math.round(liveBox.height)}`;
+  const dimensionCharWidth = 7 / scale;
   const dimensionLabelWidth =
-    dimensionText.length * 7 + DIMENSION_LABEL_PADDING * 2;
+    dimensionText.length * dimensionCharWidth + dimensionLabelPadding * 2;
+
+  // Corner radius scaled
+  const labelCornerRadius = 4 / scale;
+  const dimensionCornerRadius = 3 / scale;
 
   return (
     <>
-      {/* Label - adjacent to the bounding box */}
-      <Group x={labelX} y={labelY} listening={false}>
-        <Rect
-          width={labelWidth}
-          height={LABEL_HEIGHT}
-          fill={data.labelColor}
-          cornerRadius={[4, 4, 0, 0]}
-        />
-        <Text
-          x={LABEL_PADDING_X}
-          y={4}
-          text={data.labelName}
-          fontSize={LABEL_FONT_SIZE}
-          fontFamily="system-ui, sans-serif"
-          fill="white"
-        />
-      </Group>
+      {/* Label - adjacent to the bounding box (conditionally shown) */}
+      {showLabel ? (
+        <Group x={labelX} y={labelY} listening={false}>
+          <Rect
+            width={labelWidth}
+            height={labelHeight}
+            fill={data.labelColor}
+            cornerRadius={[labelCornerRadius, labelCornerRadius, 0, 0]}
+          />
+          <Text
+            x={labelPaddingX}
+            y={4 / scale}
+            text={data.labelName}
+            fontSize={labelFontSize}
+            fontFamily="system-ui, sans-serif"
+            fill="white"
+          />
+        </Group>
+      ) : null}
 
       {/* Dimension label - shown during transform */}
       {isTransforming ? (
         <Group
           x={liveBox.x + liveBox.width - dimensionLabelWidth}
-          y={liveBox.y + liveBox.height + 4}
+          y={liveBox.y + liveBox.height + 4 / scale}
           listening={false}
         >
           <Rect
             width={dimensionLabelWidth}
-            height={DIMENSION_LABEL_HEIGHT}
+            height={dimensionLabelHeight}
             fill="rgba(0, 0, 0, 0.75)"
-            cornerRadius={3}
+            cornerRadius={dimensionCornerRadius}
           />
           <Text
-            x={DIMENSION_LABEL_PADDING}
-            y={3}
+            x={dimensionLabelPadding}
+            y={3 / scale}
             text={dimensionText}
-            fontSize={11}
+            fontSize={11 / scale}
             fontFamily="system-ui, sans-serif"
             fill="white"
           />
@@ -294,7 +320,7 @@ export function BoundingBox({
         onTransformStart={handleTransformStart}
         onTransform={handleTransform}
         onTransformEnd={handleTransformEnd}
-        hitStrokeWidth={10}
+        hitStrokeWidth={hitStrokeWidth}
       />
 
       {/* Transformer - only when selected */}
@@ -313,11 +339,11 @@ export function BoundingBox({
             "bottom-center",
             "bottom-right",
           ]}
-          anchorSize={10}
-          anchorCornerRadius={3}
+          anchorSize={anchorSize}
+          anchorCornerRadius={3 / scale}
           anchorStroke={data.labelColor}
           anchorFill="white"
-          anchorStrokeWidth={1.5}
+          anchorStrokeWidth={1.5 / scale}
           borderStroke={data.labelColor}
           borderStrokeWidth={0}
           borderDash={[]}

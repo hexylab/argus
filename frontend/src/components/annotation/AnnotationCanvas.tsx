@@ -109,6 +109,9 @@ export function AnnotationCanvas({
   const [showLabelDialog, setShowLabelDialog] = useState(false);
   const [showHelpDialog, setShowHelpDialog] = useState(false);
 
+  // Label visibility mode: true = show all labels, false = show only selected
+  const [showAllLabels, setShowAllLabels] = useState(true);
+
   // Space key for temporary panning
   const [isSpacePressed, setIsSpacePressed] = useState(false);
 
@@ -161,10 +164,56 @@ export function AnnotationCanvas({
         return;
       }
 
-      // Tab key to toggle mode
+      // Tab key to cycle through overlapping annotations
       if (e.key === "Tab") {
         e.preventDefault();
-        setMode((current) => (current === "select" ? "draw" : "select"));
+        if (annotations.length === 0) return;
+
+        // If no selection, select the first annotation
+        if (!selectedId) {
+          setSelectedId(annotations[0].id);
+          return;
+        }
+
+        // Find overlapping annotations at the current selection's position
+        const currentAnnotation = annotations.find((a) => a.id === selectedId);
+        if (!currentAnnotation) {
+          setSelectedId(annotations[0].id);
+          return;
+        }
+
+        // Find annotations that overlap with the current one
+        const overlapping = annotations.filter((a) => {
+          if (a.id === selectedId) return true;
+          // Check if bounding boxes overlap
+          const overlapX =
+            a.x < currentAnnotation.x + currentAnnotation.width &&
+            a.x + a.width > currentAnnotation.x;
+          const overlapY =
+            a.y < currentAnnotation.y + currentAnnotation.height &&
+            a.y + a.height > currentAnnotation.y;
+          return overlapX && overlapY;
+        });
+
+        if (overlapping.length <= 1) {
+          // No overlapping, cycle through all
+          const currentIndex = annotations.findIndex(
+            (a) => a.id === selectedId
+          );
+          const nextIndex = e.shiftKey
+            ? (currentIndex - 1 + annotations.length) % annotations.length
+            : (currentIndex + 1) % annotations.length;
+          setSelectedId(annotations[nextIndex].id);
+        } else {
+          // Cycle through overlapping annotations
+          const currentIndex = overlapping.findIndex(
+            (a) => a.id === selectedId
+          );
+          const nextIndex = e.shiftKey
+            ? (currentIndex - 1 + overlapping.length) % overlapping.length
+            : (currentIndex + 1) % overlapping.length;
+          setSelectedId(overlapping[nextIndex].id);
+        }
         return;
       }
 
@@ -174,6 +223,14 @@ export function AnnotationCanvas({
           break;
         case "r":
           setMode("draw");
+          break;
+        case "q":
+          // Q key to toggle mode (since Tab is now for cycling)
+          setMode((current) => (current === "select" ? "draw" : "select"));
+          break;
+        case "h":
+          // H key to toggle label visibility
+          setShowAllLabels((prev) => !prev);
           break;
         case "escape":
           setMode("select");
@@ -205,7 +262,15 @@ export function AnnotationCanvas({
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
     };
-  }, [selectedId, isSpacePressed, undo, redo, pushHistory, setAnnotations]);
+  }, [
+    selectedId,
+    isSpacePressed,
+    undo,
+    redo,
+    pushHistory,
+    setAnnotations,
+    annotations,
+  ]);
 
   // Determine if stage should be draggable
   const isDraggable = mode === "select" || isSpacePressed;
@@ -529,6 +594,8 @@ export function AnnotationCanvas({
               isSelected={annotation.id === selectedId}
               imageWidth={imageSize.width}
               imageHeight={imageSize.height}
+              scale={scale}
+              showLabel={showAllLabels || annotation.id === selectedId}
               onSelect={handleBboxSelect}
               onTransformStart={handleTransformStart}
               onTransformEnd={handleTransformEnd}
@@ -557,6 +624,8 @@ export function AnnotationCanvas({
           canRedo={canRedo}
           onUndo={undo}
           onRedo={redo}
+          showAllLabels={showAllLabels}
+          onToggleLabels={() => setShowAllLabels((prev) => !prev)}
           onHelpClick={() => setShowHelpDialog(true)}
         />
       </div>

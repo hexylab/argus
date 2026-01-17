@@ -24,7 +24,7 @@ const shortcuts = [
   {
     category: "モード切替",
     items: [
-      { keys: ["Tab"], description: "選択/描画モード切替" },
+      { keys: ["Q"], description: "選択/描画モード切替" },
       { keys: ["V"], description: "選択モード" },
       { keys: ["R"], description: "描画モード" },
       { keys: ["Esc"], description: "選択モードに戻る・選択解除" },
@@ -38,10 +38,20 @@ const shortcuts = [
     category: "編集操作",
     items: [
       { keys: ["クリック"], description: "BBoxを選択" },
+      { keys: ["Tab"], description: "重なったBBoxを順次選択" },
+      { keys: ["Shift+Tab"], description: "重なったBBoxを逆順選択" },
       { keys: ["ドラッグ"], description: "選択中のBBoxを移動" },
       { keys: ["角をドラッグ"], description: "BBoxをリサイズ" },
+      {
+        keys: ["Shift+リサイズ"],
+        description: "アスペクト比を維持してリサイズ",
+      },
       { keys: ["Delete", "Backspace"], description: "選択中のBBoxを削除" },
     ],
+  },
+  {
+    category: "表示",
+    items: [{ keys: ["H"], description: "ラベル表示切替（全て/選択中のみ）" }],
   },
   {
     category: "履歴",
