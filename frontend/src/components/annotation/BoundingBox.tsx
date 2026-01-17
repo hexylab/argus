@@ -27,8 +27,8 @@ interface BoundingBoxProps {
 }
 
 const MIN_SIZE = 10;
-// Base values that will be divided by scale to maintain consistent visual size
-const BASE_STROKE_WIDTH = 2;
+// Base stroke widths - selected is more prominent, non-selected is subtle (CVAT-inspired)
+const BASE_STROKE_WIDTH = 1.25;
 const BASE_STROKE_WIDTH_SELECTED = 2.5;
 const BASE_LABEL_HEIGHT = 20;
 const BASE_LABEL_PADDING_X = 6;
@@ -318,7 +318,7 @@ export function BoundingBox({
         </Group>
       ) : null}
 
-      {/* Bounding box - draggable */}
+      {/* Bounding box - only selected bbox is draggable (CVAT-style) */}
       <Rect
         ref={shapeRef}
         x={data.x}
@@ -329,7 +329,7 @@ export function BoundingBox({
         strokeWidth={strokeWidth}
         strokeScaleEnabled={false}
         fill="transparent"
-        draggable
+        draggable={isSelected}
         onClick={() => onSelect(data.id)}
         onTap={() => onSelect(data.id)}
         onDragStart={handleDragStart}
