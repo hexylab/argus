@@ -121,13 +121,24 @@ export function BoundingBox({
     onDragStart?.();
   };
 
-  // Real-time position update during drag
+  // Real-time position update during drag with clamping
   const handleDragMove = (e: Konva.KonvaEventObject<DragEvent>) => {
     const node = e.target;
+    const currentX = node.x();
+    const currentY = node.y();
+
+    // Clamp position to image bounds
+    const clamped = clampPosition(currentX, currentY, data.width, data.height);
+
+    // Apply clamped position if different
+    if (clamped.x !== currentX || clamped.y !== currentY) {
+      node.position(clamped);
+    }
+
     setLiveBox((prev) => ({
       ...prev,
-      x: node.x(),
-      y: node.y(),
+      x: clamped.x,
+      y: clamped.y,
     }));
   };
 
@@ -284,10 +295,6 @@ export function BoundingBox({
         onTransform={handleTransform}
         onTransformEnd={handleTransformEnd}
         hitStrokeWidth={10}
-        dragBoundFunc={(pos) => {
-          const clamped = clampPosition(pos.x, pos.y, data.width, data.height);
-          return clamped;
-        }}
       />
 
       {/* Transformer - only when selected */}
