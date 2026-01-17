@@ -1,32 +1,30 @@
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
-  fetchAnnotations,
+  fetchAllAnnotations,
   fetchStats,
   approveAnnotations,
   deleteAnnotations,
-  updateAnnotation,
 } from "./actions";
-import { ReviewStats } from "./components/review-stats";
-import { ReviewFilters } from "./components/review-filters";
-import { ReviewGrid, ReviewGridSkeleton } from "./components/review-grid";
-import { QuickReviewModal } from "./components/quick-review-modal";
+import { SimpleReviewGrid } from "./components/simple-review-grid";
+import { PreviewDialog } from "./components/preview-dialog";
 import type {
   AnnotationWithFrame,
   AnnotationReviewStats,
-  AnnotationUpdateRequest,
 } from "@/types/annotation-review";
-import type { Label } from "@/types/label";
 
 interface ReviewClientProps {
   projectId: string;
-  labels: Label[];
   initialAnnotations: AnnotationWithFrame[];
   initialStats: AnnotationReviewStats;
 }
+
+// Sort options
+type SortOption = "frame" | "label" | "score-high" | "score-low";
 
 // Icons
 function CheckIcon({ className }: { className?: string }) {
@@ -65,7 +63,7 @@ function TrashIcon({ className }: { className?: string }) {
   );
 }
 
-function PlayIcon({ className }: { className?: string }) {
+function RefreshIcon({ className }: { className?: string }) {
   return (
     <svg
       className={className}
@@ -77,7 +75,7 @@ function PlayIcon({ className }: { className?: string }) {
       <path
         strokeLinecap="round"
         strokeLinejoin="round"
-        d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 010 1.972l-11.54 6.347a1.125 1.125 0 01-1.667-.986V5.653z"
+        d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"
       />
     </svg>
   );
@@ -85,7 +83,6 @@ function PlayIcon({ className }: { className?: string }) {
 
 export function ReviewClient({
   projectId,
-  labels,
   initialAnnotations,
   initialStats,
 }: ReviewClientProps) {
@@ -96,47 +93,67 @@ export function ReviewClient({
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Selection state
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Excluded items (to be deleted)
+  const [excludedIds, setExcludedIds] = useState<Set<string>>(new Set());
 
-  // Quick review modal state
-  const [quickReviewIndex, setQuickReviewIndex] = useState<number | null>(null);
+  // Sorting
+  const [sortOption, setSortOption] = useState<SortOption>("frame");
 
-  // Filter state
-  const [filters, setFilters] = useState<{
-    source?: "auto" | "manual" | "imported";
-    reviewed?: boolean;
-    minConfidence?: number;
-    maxConfidence?: number;
-    labelId?: string;
-  }>({});
+  // Preview dialog
+  const [previewAnnotation, setPreviewAnnotation] =
+    useState<AnnotationWithFrame | null>(null);
 
-  // Computed: unreviewed annotations
-  const unreviewedAnnotations = useMemo(
-    () => annotations.filter((a) => !a.reviewed),
-    [annotations]
-  );
+  // Computed values
+  const excludedCount = excludedIds.size;
+  const approveCount = annotations.length - excludedCount;
 
-  // Computed: high confidence unreviewed annotations (80%+)
-  const highConfidenceUnreviewed = useMemo(
-    () => annotations.filter((a) => !a.reviewed && (a.confidence ?? 0) >= 0.8),
-    [annotations]
-  );
+  // Sorted annotations
+  const sortedAnnotations = useMemo(() => {
+    const sorted = [...annotations];
+    switch (sortOption) {
+      case "label":
+        sorted.sort((a, b) => a.label_name.localeCompare(b.label_name));
+        break;
+      case "score-high":
+        sorted.sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0));
+        break;
+      case "score-low":
+        sorted.sort((a, b) => (a.confidence ?? 0) - (b.confidence ?? 0));
+        break;
+      case "frame":
+      default:
+        sorted.sort((a, b) => a.frame_number - b.frame_number);
+        break;
+    }
+    return sorted;
+  }, [annotations, sortOption]);
+
+  // Toggle exclusion
+  const toggleExcluded = useCallback((id: string) => {
+    setExcludedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  // Clear exclusions
+  const clearExcluded = useCallback(() => {
+    setExcludedIds(new Set());
+  }, []);
 
   // Refresh data
   const refreshData = useCallback(async () => {
     setIsLoading(true);
     setError(null);
+    setExcludedIds(new Set());
 
     const [annotationsResult, statsResult] = await Promise.all([
-      fetchAnnotations(projectId, {
-        source: filters.source,
-        reviewed: filters.reviewed,
-        min_confidence: filters.minConfidence,
-        max_confidence: filters.maxConfidence,
-        label_id: filters.labelId,
-        limit: 100,
-      }),
+      fetchAllAnnotations(projectId, { reviewed: false }),
       fetchStats(projectId),
     ]);
 
@@ -151,166 +168,26 @@ export function ReviewClient({
     }
 
     setIsLoading(false);
-  }, [projectId, filters]);
+  }, [projectId]);
 
-  // Handle filter change
-  const handleFilterChange = useCallback(
-    async (newFilters: typeof filters) => {
-      setFilters(newFilters);
-      setSelectedIds(new Set());
-      setIsLoading(true);
-      setError(null);
+  // Approve all (without excluded)
+  const handleApproveAll = useCallback(async () => {
+    const idsToApprove = annotations
+      .filter((a) => !excludedIds.has(a.id))
+      .map((a) => a.id);
 
-      const result = await fetchAnnotations(projectId, {
-        source: newFilters.source,
-        reviewed: newFilters.reviewed,
-        min_confidence: newFilters.minConfidence,
-        max_confidence: newFilters.maxConfidence,
-        label_id: newFilters.labelId,
-        limit: 100,
-      });
-
-      if (result.error) {
-        setError(result.error);
-      } else {
-        setAnnotations(result.annotations ?? []);
-      }
-
-      setIsLoading(false);
-    },
-    [projectId]
-  );
-
-  // Selection handlers
-  const handleSelectionChange = useCallback((id: string, selected: boolean) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (selected) {
-        next.add(id);
-      } else {
-        next.delete(id);
-      }
-      return next;
-    });
-  }, []);
-
-  const handleSelectAll = useCallback(() => {
-    setSelectedIds(new Set(annotations.map((a) => a.id)));
-  }, [annotations]);
-
-  const handleDeselectAll = useCallback(() => {
-    setSelectedIds(new Set());
-  }, []);
-
-  // Single item approve
-  const handleSingleApprove = useCallback(
-    async (id: string) => {
-      setError(null);
-      const result = await approveAnnotations(projectId, [id]);
-
-      if (result.error) {
-        setError(result.error);
-      } else {
-        setAnnotations((prev) =>
-          prev.map((a) => (a.id === id ? { ...a, reviewed: true } : a))
-        );
-        setStats((prev) => ({
-          ...prev,
-          reviewed_count: prev.reviewed_count + 1,
-          pending_count: prev.pending_count - 1,
-        }));
-      }
-    },
-    [projectId]
-  );
-
-  // Single item delete
-  const handleSingleDelete = useCallback(
-    async (id: string) => {
-      setError(null);
-      const result = await deleteAnnotations(projectId, [id]);
-
-      if (result.error) {
-        setError(result.error);
-      } else {
-        const deletedAnnotation = annotations.find((a) => a.id === id);
-        setAnnotations((prev) => prev.filter((a) => a.id !== id));
-        setStats((prev) => ({
-          ...prev,
-          total_count: prev.total_count - 1,
-          pending_count: deletedAnnotation?.reviewed
-            ? prev.pending_count
-            : prev.pending_count - 1,
-          reviewed_count: deletedAnnotation?.reviewed
-            ? prev.reviewed_count - 1
-            : prev.reviewed_count,
-        }));
-        setSelectedIds((prev) => {
-          const next = new Set(prev);
-          next.delete(id);
-          return next;
-        });
-      }
-    },
-    [projectId, annotations]
-  );
-
-  // Single item update (bbox position/size, label)
-  const handleSingleUpdate = useCallback(
-    async (annotation: AnnotationWithFrame, data: AnnotationUpdateRequest) => {
-      setError(null);
-      const result = await updateAnnotation(
-        projectId,
-        annotation.video_id,
-        annotation.frame_id,
-        annotation.id,
-        data
-      );
-
-      if (result.error) {
-        setError(result.error);
-      } else if (result.annotation) {
-        // Find updated label info if label was changed
-        const updatedLabel = data.label_id
-          ? labels.find((l) => l.id === data.label_id)
-          : null;
-
-        setAnnotations((prev) =>
-          prev.map((a) =>
-            a.id === annotation.id
-              ? {
-                  ...a,
-                  bbox_x: data.bbox_x ?? a.bbox_x,
-                  bbox_y: data.bbox_y ?? a.bbox_y,
-                  bbox_width: data.bbox_width ?? a.bbox_width,
-                  bbox_height: data.bbox_height ?? a.bbox_height,
-                  label_id: data.label_id ?? a.label_id,
-                  label_name: updatedLabel?.name ?? a.label_name,
-                  label_color: updatedLabel?.color ?? a.label_color,
-                }
-              : a
-          )
-        );
-      }
-    },
-    [projectId, labels]
-  );
-
-  // Bulk approve
-  const handleBulkApprove = useCallback(async () => {
-    if (selectedIds.size === 0) return;
+    if (idsToApprove.length === 0) return;
 
     setIsProcessing(true);
     setError(null);
 
-    const result = await approveAnnotations(projectId, Array.from(selectedIds));
+    const result = await approveAnnotations(projectId, idsToApprove);
 
     if (result.error) {
       setError(result.error);
     } else {
-      setAnnotations((prev) =>
-        prev.map((a) => (selectedIds.has(a.id) ? { ...a, reviewed: true } : a))
-      );
+      // Remove approved items from list
+      setAnnotations((prev) => prev.filter((a) => excludedIds.has(a.id)));
       setStats((prev) => ({
         ...prev,
         reviewed_count:
@@ -318,167 +195,165 @@ export function ReviewClient({
         pending_count:
           prev.pending_count - (result.result?.approved_count ?? 0),
       }));
-      setSelectedIds(new Set());
+      setExcludedIds(new Set());
     }
 
     setIsProcessing(false);
-  }, [projectId, selectedIds]);
+  }, [projectId, annotations, excludedIds]);
 
-  // Bulk delete
-  const handleBulkDelete = useCallback(async () => {
-    if (selectedIds.size === 0) return;
+  // Delete excluded and approve rest
+  const handleDeleteExcludedAndApprove = useCallback(async () => {
+    if (excludedIds.size === 0) {
+      // No exclusions, just approve all
+      return handleApproveAll();
+    }
 
     setIsProcessing(true);
     setError(null);
 
-    const result = await deleteAnnotations(projectId, Array.from(selectedIds));
+    // First delete excluded
+    const deleteResult = await deleteAnnotations(
+      projectId,
+      Array.from(excludedIds)
+    );
 
-    if (result.error) {
-      setError(result.error);
-    } else {
-      setAnnotations((prev) => prev.filter((a) => !selectedIds.has(a.id)));
-      setStats((prev) => ({
-        ...prev,
-        total_count: prev.total_count - (result.result?.deleted_count ?? 0),
-        pending_count: Math.max(
-          0,
-          prev.pending_count - (result.result?.deleted_count ?? 0)
-        ),
-      }));
-      setSelectedIds(new Set());
+    if (deleteResult.error) {
+      setError(deleteResult.error);
+      setIsProcessing(false);
+      return;
     }
 
-    setIsProcessing(false);
-  }, [projectId, selectedIds]);
+    // Then approve the rest
+    const idsToApprove = annotations
+      .filter((a) => !excludedIds.has(a.id))
+      .map((a) => a.id);
 
-  // Approve all unreviewed
-  const handleApproveAllUnreviewed = useCallback(async () => {
-    const ids = unreviewedAnnotations.map((a) => a.id);
-    if (ids.length === 0) return;
+    if (idsToApprove.length > 0) {
+      const approveResult = await approveAnnotations(projectId, idsToApprove);
 
-    setIsProcessing(true);
-    setError(null);
+      if (approveResult.error) {
+        setError(approveResult.error);
+        setIsProcessing(false);
+        return;
+      }
 
-    const result = await approveAnnotations(projectId, ids);
-
-    if (result.error) {
-      setError(result.error);
-    } else {
-      setAnnotations((prev) =>
-        prev.map((a) => (!a.reviewed ? { ...a, reviewed: true } : a))
-      );
       setStats((prev) => ({
         ...prev,
+        total_count:
+          prev.total_count - (deleteResult.result?.deleted_count ?? 0),
         reviewed_count:
-          prev.reviewed_count + (result.result?.approved_count ?? 0),
+          prev.reviewed_count + (approveResult.result?.approved_count ?? 0),
         pending_count: 0,
       }));
-    }
-
-    setIsProcessing(false);
-  }, [projectId, unreviewedAnnotations]);
-
-  // Approve high confidence unreviewed
-  const handleApproveHighConfidence = useCallback(async () => {
-    const ids = highConfidenceUnreviewed.map((a) => a.id);
-    if (ids.length === 0) return;
-
-    setIsProcessing(true);
-    setError(null);
-
-    const result = await approveAnnotations(projectId, ids);
-
-    if (result.error) {
-      setError(result.error);
     } else {
-      const approvedSet = new Set(ids);
-      setAnnotations((prev) =>
-        prev.map((a) => (approvedSet.has(a.id) ? { ...a, reviewed: true } : a))
-      );
       setStats((prev) => ({
         ...prev,
-        reviewed_count:
-          prev.reviewed_count + (result.result?.approved_count ?? 0),
+        total_count:
+          prev.total_count - (deleteResult.result?.deleted_count ?? 0),
         pending_count:
-          prev.pending_count - (result.result?.approved_count ?? 0),
+          prev.pending_count - (deleteResult.result?.deleted_count ?? 0),
       }));
     }
 
+    // Clear the list
+    setAnnotations([]);
+    setExcludedIds(new Set());
     setIsProcessing(false);
-  }, [projectId, highConfidenceUnreviewed]);
+  }, [projectId, annotations, excludedIds, handleApproveAll]);
 
-  // Quick review modal handlers
-  const handleOpenQuickReview = useCallback((index: number) => {
-    setQuickReviewIndex(index);
-  }, []);
-
-  const handleCloseQuickReview = useCallback(() => {
-    setQuickReviewIndex(null);
-  }, []);
-
-  const handleStartQuickReview = useCallback(() => {
-    // Start with first unreviewed annotation
-    const firstUnreviewedIndex = annotations.findIndex((a) => !a.reviewed);
-    if (firstUnreviewedIndex >= 0) {
-      setQuickReviewIndex(firstUnreviewedIndex);
-    } else if (annotations.length > 0) {
-      setQuickReviewIndex(0);
-    }
-  }, [annotations]);
-
-  // Count of unreviewed selected
-  const selectedUnreviewedCount = useMemo(() => {
-    return annotations.filter((a) => selectedIds.has(a.id) && !a.reviewed)
-      .length;
-  }, [annotations, selectedIds]);
-
-  return (
-    <div className="space-y-6">
-      {/* Stats */}
-      <ReviewStats stats={stats} />
-
-      {/* Quick Actions Bar */}
-      {unreviewedAnnotations.length > 0 ? (
+  // All done state
+  if (!isLoading && annotations.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
         <div
           className={cn(
-            "flex flex-wrap items-center gap-3 p-4 -mx-4",
-            "bg-gradient-to-r from-blue-50 via-indigo-50/50 to-blue-50",
-            "dark:from-blue-950/30 dark:via-indigo-950/20 dark:to-blue-950/30",
-            "border-y border-blue-200/50 dark:border-blue-800/30"
+            "size-20 rounded-2xl flex items-center justify-center mb-6",
+            "bg-gradient-to-br from-emerald-100 to-emerald-50",
+            "dark:from-emerald-900/30 dark:to-emerald-950/20",
+            "border border-emerald-200 dark:border-emerald-800"
           )}
         >
-          <div className="flex items-center gap-2 text-sm text-blue-700 dark:text-blue-300">
-            <svg
-              className="size-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"
-              />
-            </svg>
-            <span className="font-medium">クイックアクション</span>
-          </div>
+          <CheckIcon className="size-10 text-emerald-600 dark:text-emerald-400" />
+        </div>
+        <p className="text-lg font-medium">レビュー完了</p>
+        <p className="text-sm text-muted-foreground mt-2 max-w-[280px]">
+          未レビューのアノテーションはありません。
+        </p>
+        <div className="flex items-center gap-3 mt-6">
+          <Button variant="outline" onClick={refreshData} className="gap-2">
+            <RefreshIcon className="size-4" />
+            更新
+          </Button>
+          <Link href={`/projects/${projectId}`}>
+            <Button variant="outline">プロジェクトに戻る</Button>
+          </Link>
+        </div>
+        {stats.reviewed_count > 0 ? (
+          <p className="text-xs text-muted-foreground mt-4">
+            承認済み: {stats.reviewed_count}件
+          </p>
+        ) : null}
+      </div>
+    );
+  }
 
-          <div className="flex items-center gap-2">
+  return (
+    <div className="space-y-4">
+      {/* Action Bar */}
+      <div
+        className={cn(
+          "flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl",
+          "bg-gradient-to-r from-muted/50 to-muted/30",
+          "border border-border/50"
+        )}
+      >
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium">
+            未レビュー: <span className="text-lg">{annotations.length}</span>件
+          </span>
+          {isLoading ? (
+            <RefreshIcon className="size-4 animate-spin text-muted-foreground" />
+          ) : (
+            <button
+              type="button"
+              onClick={refreshData}
+              className="p-1 rounded hover:bg-muted transition-colors"
+              title="更新"
+            >
+              <RefreshIcon className="size-4 text-muted-foreground" />
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          {excludedCount === 0 ? (
             <Button
-              variant="outline"
-              size="sm"
-              onClick={handleStartQuickReview}
-              className="gap-2"
+              onClick={handleApproveAll}
+              disabled={isProcessing || annotations.length === 0}
+              className={cn(
+                "gap-2",
+                "bg-gradient-to-r from-emerald-600 to-emerald-700",
+                "hover:from-emerald-500 hover:to-emerald-600"
+              )}
             >
-              <PlayIcon className="size-4" />
-              1件ずつレビュー
+              <CheckIcon className="size-4" />
+              すべて承認 ({annotations.length})
             </Button>
-
-            {highConfidenceUnreviewed.length > 0 ? (
+          ) : (
+            <>
+              <span className="text-sm text-muted-foreground">
+                除外: {excludedCount}件
+              </span>
               <Button
+                variant="ghost"
                 size="sm"
-                onClick={handleApproveHighConfidence}
+                onClick={clearExcluded}
+                disabled={isProcessing}
+              >
+                クリア
+              </Button>
+              <Button
+                onClick={handleDeleteExcludedAndApprove}
                 disabled={isProcessing}
                 className={cn(
                   "gap-2",
@@ -486,192 +361,97 @@ export function ReviewClient({
                   "hover:from-emerald-500 hover:to-emerald-600"
                 )}
               >
-                <CheckIcon className="size-4" />
-                信頼度80%+を承認 ({highConfidenceUnreviewed.length})
+                <TrashIcon className="size-4" />
+                {excludedCount}件削除 & {approveCount}件承認
               </Button>
-            ) : null}
-
-            <Button
-              size="sm"
-              onClick={handleApproveAllUnreviewed}
-              disabled={isProcessing}
-              className={cn(
-                "gap-2",
-                "bg-gradient-to-r from-blue-600 to-blue-700",
-                "hover:from-blue-500 hover:to-blue-600"
-              )}
-            >
-              <CheckIcon className="size-4" />
-              すべて承認 ({unreviewedAnnotations.length})
-            </Button>
-          </div>
-        </div>
-      ) : null}
-
-      {/* Filters */}
-      <ReviewFilters
-        labels={labels}
-        filters={filters}
-        onFilterChange={handleFilterChange}
-        onRefresh={refreshData}
-        isLoading={isLoading}
-      />
-
-      {/* Selection Action Bar */}
-      {selectedIds.size > 0 ? (
-        <div
-          className={cn(
-            "flex items-center justify-between gap-4 px-4 py-3 -mx-4",
-            "bg-gradient-to-r from-primary/10 via-primary/5 to-primary/10",
-            "border-y border-primary/20",
-            "animate-in fade-in slide-in-from-top-2 duration-300"
+            </>
           )}
-        >
-          <div className="flex items-center gap-4">
-            <span className="text-sm font-medium">
-              {selectedIds.size} 件選択中
-            </span>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleSelectAll}
-              className="text-xs"
-            >
-              すべて選択
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleDeselectAll}
-              className="text-xs"
-            >
-              選択解除
-            </Button>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {selectedUnreviewedCount > 0 ? (
-              <Button
-                onClick={handleBulkApprove}
-                disabled={isProcessing}
-                className={cn(
-                  "gap-2",
-                  "bg-gradient-to-r from-emerald-600 to-emerald-700",
-                  "hover:from-emerald-500 hover:to-emerald-600",
-                  "shadow-md"
-                )}
-              >
-                <CheckIcon className="size-4" />
-                承認 ({selectedUnreviewedCount})
-              </Button>
-            ) : null}
-            <Button
-              variant="destructive"
-              onClick={handleBulkDelete}
-              disabled={isProcessing}
-              className="gap-2 shadow-md"
-            >
-              <TrashIcon className="size-4" />
-              削除 ({selectedIds.size})
-            </Button>
-          </div>
         </div>
-      ) : null}
+      </div>
+
+      {/* Sort and Help */}
+      <div className="flex items-center justify-between gap-4">
+        <p className="text-xs text-muted-foreground">
+          問題のあるアノテーションをクリックして除外マークを付けてください。除外したものは削除され、残りは承認されます。
+        </p>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-xs text-muted-foreground">並び替え:</span>
+          <select
+            value={sortOption}
+            onChange={(e) => setSortOption(e.target.value as SortOption)}
+            className={cn(
+              "text-xs px-2 py-1 rounded border border-border",
+              "bg-background focus:outline-none focus:ring-2 focus:ring-primary/50"
+            )}
+          >
+            <option value="frame">フレーム順</option>
+            <option value="label">ラベル順</option>
+            <option value="score-high">Score高い順</option>
+            <option value="score-low">Score低い順</option>
+          </select>
+        </div>
+      </div>
 
       {/* Error */}
       {error ? (
         <div
           className={cn(
-            "flex items-start gap-3 rounded-xl px-5 py-4",
+            "flex items-center gap-3 rounded-lg px-4 py-3",
             "bg-red-50 dark:bg-red-950/30",
             "border border-red-200 dark:border-red-900/50",
-            "animate-in fade-in slide-in-from-top-2 duration-200"
+            "text-sm text-red-700 dark:text-red-300"
           )}
         >
-          <div className="size-8 rounded-full bg-red-100 dark:bg-red-900/50 flex items-center justify-center shrink-0">
-            <svg
-              className="size-4 text-red-600 dark:text-red-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
-              />
-            </svg>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-red-700 dark:text-red-300">
-              エラーが発生しました
-            </p>
-            <p className="text-sm text-red-600/80 dark:text-red-400/80 mt-0.5">
-              {error}
-            </p>
-          </div>
+          <svg
+            className="size-4 shrink-0"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
+            />
+          </svg>
+          {error}
         </div>
       ) : null}
 
       {/* Grid */}
       {isLoading ? (
-        <ReviewGridSkeleton />
-      ) : annotations.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div
-            className={cn(
-              "size-20 rounded-2xl flex items-center justify-center mb-6",
-              "bg-gradient-to-br from-muted/80 to-muted/40",
-              "border border-border/50"
-            )}
-          >
-            <svg
-              className="size-10 text-muted-foreground/40"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={1}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-          </div>
-          <p className="text-lg font-medium text-muted-foreground">
-            アノテーションがありません
-          </p>
-          <p className="text-sm text-muted-foreground/70 mt-2 max-w-[280px]">
-            フィルター条件を変更するか、自動アノテーションを実行してください。
-          </p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+          {Array.from({ length: 18 }).map((_, i) => (
+            <div key={i} className="flex flex-col">
+              <div className="aspect-video rounded-t-lg bg-muted animate-pulse" />
+              <div className="h-8 rounded-b-lg bg-muted/50 animate-pulse" />
+            </div>
+          ))}
         </div>
       ) : (
-        <ReviewGrid
-          annotations={annotations}
-          projectId={projectId}
-          selectedIds={selectedIds}
-          onSelectionChange={handleSelectionChange}
-          onApprove={handleSingleApprove}
-          onDelete={handleSingleDelete}
-          onOpenQuickReview={handleOpenQuickReview}
+        <SimpleReviewGrid
+          annotations={sortedAnnotations}
+          excludedIds={excludedIds}
+          onToggleExcluded={toggleExcluded}
+          onOpenPreview={setPreviewAnnotation}
         />
       )}
 
-      {/* Quick Review Modal */}
-      {quickReviewIndex !== null ? (
-        <QuickReviewModal
-          annotations={annotations}
-          projectId={projectId}
-          labels={labels}
-          initialIndex={quickReviewIndex}
-          onApprove={handleSingleApprove}
-          onDelete={handleSingleDelete}
-          onUpdate={handleSingleUpdate}
-          onClose={handleCloseQuickReview}
-        />
-      ) : null}
+      {/* Preview Dialog */}
+      <PreviewDialog
+        annotation={previewAnnotation}
+        projectId={projectId}
+        isExcluded={
+          previewAnnotation ? excludedIds.has(previewAnnotation.id) : false
+        }
+        onClose={() => setPreviewAnnotation(null)}
+        onToggleExcluded={() => {
+          if (previewAnnotation) {
+            toggleExcluded(previewAnnotation.id);
+          }
+        }}
+      />
     </div>
   );
 }

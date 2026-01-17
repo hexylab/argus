@@ -92,6 +92,51 @@ export async function fetchAnnotations(
   }
 }
 
+/**
+ * Fetch all annotations with automatic pagination.
+ * Loads all data by making multiple requests if needed.
+ */
+export async function fetchAllAnnotations(
+  projectId: string,
+  params: Omit<AnnotationFilterParams, "skip" | "limit"> = {}
+): Promise<{
+  annotations?: AnnotationWithFrame[];
+  error?: string;
+}> {
+  try {
+    const accessToken = await getAccessToken();
+
+    if (!accessToken) {
+      return { error: "認証が必要です" };
+    }
+
+    const allAnnotations: AnnotationWithFrame[] = [];
+    const batchSize = 500; // API maximum
+    let skip = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const batch = await getProjectAnnotations(accessToken, projectId, {
+        ...params,
+        skip,
+        limit: batchSize,
+      });
+
+      allAnnotations.push(...batch);
+
+      if (batch.length < batchSize) {
+        hasMore = false;
+      } else {
+        skip += batchSize;
+      }
+    }
+
+    return { annotations: allAnnotations };
+  } catch {
+    return { error: "アノテーションの取得に失敗しました" };
+  }
+}
+
 export async function fetchStats(projectId: string): Promise<{
   stats?: AnnotationReviewStats;
   error?: string;
@@ -130,8 +175,9 @@ export async function approveAnnotations(
       annotationIds
     );
     return { result };
-  } catch {
-    return { error: "承認に失敗しました" };
+  } catch (e) {
+    console.error("approveAnnotations error:", e);
+    return { error: `承認に失敗しました: ${e instanceof Error ? e.message : String(e)}` };
   }
 }
 

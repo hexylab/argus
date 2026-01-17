@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState, useRef } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -88,6 +87,115 @@ function XIcon({ className }: { className?: string }) {
         d="M6 18L18 6M6 6l12 12"
       />
     </svg>
+  );
+}
+
+// Component for displaying image with correctly positioned BBox overlay
+interface ImageWithBBoxProps {
+  imageUrl: string;
+  bbox: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    color: string;
+  };
+  onError: () => void;
+}
+
+function ImageWithBBox({ imageUrl, bbox, onError }: ImageWithBBoxProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
+  const [imageRect, setImageRect] = useState<{
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  } | null>(null);
+
+  const calculateImageRect = useCallback(() => {
+    const img = imgRef.current;
+    const container = containerRef.current;
+    if (!container || !img || !img.naturalWidth || !img.naturalHeight) return;
+
+    const containerWidth = container.clientWidth;
+    const containerHeight = container.clientHeight;
+    const imgNaturalWidth = img.naturalWidth;
+    const imgNaturalHeight = img.naturalHeight;
+
+    // Calculate how the image fits with object-contain
+    const containerAspect = containerWidth / containerHeight;
+    const imageAspect = imgNaturalWidth / imgNaturalHeight;
+
+    let displayWidth: number;
+    let displayHeight: number;
+    let offsetX: number;
+    let offsetY: number;
+
+    if (imageAspect > containerAspect) {
+      // Image is wider - fit to width
+      displayWidth = containerWidth;
+      displayHeight = containerWidth / imageAspect;
+      offsetX = 0;
+      offsetY = (containerHeight - displayHeight) / 2;
+    } else {
+      // Image is taller - fit to height
+      displayHeight = containerHeight;
+      displayWidth = containerHeight * imageAspect;
+      offsetX = (containerWidth - displayWidth) / 2;
+      offsetY = 0;
+    }
+
+    setImageRect({
+      left: offsetX,
+      top: offsetY,
+      width: displayWidth,
+      height: displayHeight,
+    });
+  }, []);
+
+  const handleImageLoad = useCallback(() => {
+    calculateImageRect();
+  }, [calculateImageRect]);
+
+  // Recalculate on mount in case image is already cached
+  const handleImgRef = useCallback(
+    (node: HTMLImageElement | null) => {
+      imgRef.current = node;
+      if (node && node.complete && node.naturalWidth > 0) {
+        // Image already loaded (cached)
+        setTimeout(calculateImageRect, 0);
+      }
+    },
+    [calculateImageRect]
+  );
+
+  return (
+    <div ref={containerRef} className="absolute inset-0">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        ref={handleImgRef}
+        src={imageUrl}
+        alt="Frame"
+        className="absolute inset-0 w-full h-full object-contain"
+        onLoad={handleImageLoad}
+        onError={onError}
+      />
+      {/* BBox overlay positioned relative to actual image display */}
+      {imageRect ? (
+        <div
+          className="absolute border-3 border-dashed pointer-events-none"
+          style={{
+            left: imageRect.left + bbox.x * imageRect.width,
+            top: imageRect.top + bbox.y * imageRect.height,
+            width: bbox.width * imageRect.width,
+            height: bbox.height * imageRect.height,
+            borderColor: bbox.color,
+            borderWidth: "3px",
+          }}
+        />
+      ) : null}
+    </div>
   );
 }
 
@@ -355,30 +463,17 @@ export function QuickReviewModal({
               />
             ) : imageUrl && !imageError ? (
               // View mode: show image with overlay
-              <>
-                <Image
-                  src={imageUrl}
-                  alt={`Frame ${current.frame_number}`}
-                  fill
-                  className="object-contain"
-                  sizes="(max-width: 1024px) 100vw, 896px"
-                  onError={() => setImageError(true)}
-                  unoptimized
-                  priority
-                />
-                {/* Bounding box overlay */}
-                <div
-                  className="absolute border-3 border-dashed pointer-events-none"
-                  style={{
-                    left: `${current.bbox_x * 100}%`,
-                    top: `${current.bbox_y * 100}%`,
-                    width: `${current.bbox_width * 100}%`,
-                    height: `${current.bbox_height * 100}%`,
-                    borderColor: current.label_color,
-                    borderWidth: "3px",
-                  }}
-                />
-              </>
+              <ImageWithBBox
+                imageUrl={imageUrl}
+                bbox={{
+                  x: current.bbox_x,
+                  y: current.bbox_y,
+                  width: current.bbox_width,
+                  height: current.bbox_height,
+                  color: current.label_color,
+                }}
+                onError={() => setImageError(true)}
+              />
             ) : (
               <div className="absolute inset-0 flex items-center justify-center">
                 <svg

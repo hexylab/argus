@@ -22,6 +22,24 @@ class AnnotationNotFoundError(Exception):
     pass
 
 
+def _determine_reviewed_status(source: AnnotationSource | None) -> bool:
+    """
+    Determine reviewed status based on annotation source.
+
+    - manual/imported: reviewed=True (human-created or intentionally imported)
+    - auto: reviewed=False (AI-generated, needs review)
+
+    Args:
+        source: Annotation source type.
+
+    Returns:
+        Whether the annotation should be marked as reviewed.
+    """
+    if source == AnnotationSource.AUTO:
+        return False
+    return True
+
+
 def create_annotation(client: Client, data: AnnotationCreate) -> Annotation:
     """
     Create a new annotation.
@@ -33,6 +51,9 @@ def create_annotation(client: Client, data: AnnotationCreate) -> Annotation:
     Returns:
         Created annotation.
     """
+    source = data.source or AnnotationSource.MANUAL
+    reviewed = _determine_reviewed_status(source)
+
     insert_data: dict[str, Any] = {
         "frame_id": str(data.frame_id),
         "label_id": str(data.label_id),
@@ -42,8 +63,8 @@ def create_annotation(client: Client, data: AnnotationCreate) -> Annotation:
         "bbox_height": data.bbox_height,
         "segmentation": data.segmentation,
         "confidence": data.confidence,
-        "source": data.source.value if data.source else "manual",
-        "reviewed": data.reviewed,
+        "source": source.value,
+        "reviewed": reviewed,
         "created_by": str(data.created_by),
     }
 
@@ -247,22 +268,25 @@ def bulk_create_annotations(
     if not annotations:
         return []
 
-    insert_data = [
-        {
-            "frame_id": str(data.frame_id),
-            "label_id": str(data.label_id),
-            "bbox_x": data.bbox_x,
-            "bbox_y": data.bbox_y,
-            "bbox_width": data.bbox_width,
-            "bbox_height": data.bbox_height,
-            "segmentation": data.segmentation,
-            "confidence": data.confidence,
-            "source": data.source.value if data.source else "manual",
-            "reviewed": data.reviewed,
-            "created_by": str(data.created_by),
-        }
-        for data in annotations
-    ]
+    insert_data = []
+    for data in annotations:
+        source = data.source or AnnotationSource.MANUAL
+        reviewed = _determine_reviewed_status(source)
+        insert_data.append(
+            {
+                "frame_id": str(data.frame_id),
+                "label_id": str(data.label_id),
+                "bbox_x": data.bbox_x,
+                "bbox_y": data.bbox_y,
+                "bbox_width": data.bbox_width,
+                "bbox_height": data.bbox_height,
+                "segmentation": data.segmentation,
+                "confidence": data.confidence,
+                "source": source.value,
+                "reviewed": reviewed,
+                "created_by": str(data.created_by),
+            }
+        )
 
     result = client.table("annotations").insert(insert_data).execute()
 
@@ -412,21 +436,27 @@ def bulk_approve_annotations(
         return 0
 
     now = datetime.now(UTC)
+    total_approved = 0
 
-    result = (
-        client.table("annotations")
-        .update(
-            {
-                "reviewed": True,
-                "reviewed_by": str(reviewed_by),
-                "reviewed_at": now.isoformat(),
-            }
+    # Process in batches to avoid URI too long error
+    batch_size = 50
+    for i in range(0, len(annotation_ids), batch_size):
+        batch = annotation_ids[i : i + batch_size]
+        result = (
+            client.table("annotations")
+            .update(
+                {
+                    "reviewed": True,
+                    "reviewed_by": str(reviewed_by),
+                    "reviewed_at": now.isoformat(),
+                }
+            )
+            .in_("id", [str(aid) for aid in batch])
+            .execute()
         )
-        .in_("id", [str(aid) for aid in annotation_ids])
-        .execute()
-    )
+        total_approved += len(result.data) if result.data else 0
 
-    return len(result.data) if result.data else 0
+    return total_approved
 
 
 def bulk_delete_annotations(
@@ -446,11 +476,18 @@ def bulk_delete_annotations(
     if not annotation_ids:
         return 0
 
-    result = (
-        client.table("annotations")
-        .delete()
-        .in_("id", [str(aid) for aid in annotation_ids])
-        .execute()
-    )
+    total_deleted = 0
 
-    return len(result.data) if result.data else 0
+    # Process in batches to avoid URI too long error
+    batch_size = 50
+    for i in range(0, len(annotation_ids), batch_size):
+        batch = annotation_ids[i : i + batch_size]
+        result = (
+            client.table("annotations")
+            .delete()
+            .in_("id", [str(aid) for aid in batch])
+            .execute()
+        )
+        total_deleted += len(result.data) if result.data else 0
+
+    return total_deleted

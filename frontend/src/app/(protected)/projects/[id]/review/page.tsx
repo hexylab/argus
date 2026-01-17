@@ -1,11 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
-import {
-  fetchProject,
-  fetchLabels,
-  fetchAnnotations,
-  fetchStats,
-} from "./actions";
+import { fetchProject, fetchAllAnnotations, fetchStats } from "./actions";
 import { ReviewClient } from "./review-client";
 
 interface ReviewPageProps {
@@ -45,20 +40,17 @@ export default async function ReviewPage({ params }: ReviewPageProps) {
     redirect("/login");
   }
 
-  const [projectResult, labelsResult, annotationsResult, statsResult] =
-    await Promise.all([
-      fetchProject(projectId),
-      fetchLabels(projectId),
-      fetchAnnotations(projectId, { limit: 100 }),
-      fetchStats(projectId),
-    ]);
+  const [projectResult, annotationsResult, statsResult] = await Promise.all([
+    fetchProject(projectId),
+    fetchAllAnnotations(projectId, { reviewed: false }),
+    fetchStats(projectId),
+  ]);
 
   if (projectResult.error || !projectResult.project) {
     notFound();
   }
 
   const project = projectResult.project;
-  const labels = labelsResult.labels ?? [];
   const initialAnnotations = annotationsResult.annotations ?? [];
   const initialStats = statsResult.stats ?? {
     total_count: 0,
@@ -69,35 +61,23 @@ export default async function ReviewPage({ params }: ReviewPageProps) {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Page Header */}
-      <header className="space-y-3">
-        <div className="flex items-center gap-4">
-          <div className="flex size-12 items-center justify-center rounded-xl bg-foreground/5">
-            <ReviewIcon className="size-6 text-foreground/70" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">
-              アノテーションレビュー
-            </h1>
-            <p className="mt-0.5 text-sm text-muted-foreground">
-              {project.name}
-            </p>
-          </div>
+      <header className="flex items-center gap-3">
+        <div className="flex size-10 items-center justify-center rounded-lg bg-foreground/5">
+          <ReviewIcon className="size-5 text-foreground/70" />
         </div>
-        <p className="text-muted-foreground">
-          自動生成されたアノテーションを確認し、承認または削除します。
-          信頼度の低いアノテーションから優先的に表示されます。
-        </p>
+        <div>
+          <h1 className="text-xl font-bold tracking-tight">
+            アノテーションレビュー
+          </h1>
+          <p className="text-sm text-muted-foreground">{project.name}</p>
+        </div>
       </header>
-
-      {/* Divider */}
-      <div className="border-t border-border" />
 
       {/* Review Client */}
       <ReviewClient
         projectId={projectId}
-        labels={labels}
         initialAnnotations={initialAnnotations}
         initialStats={initialStats}
       />
