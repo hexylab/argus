@@ -80,6 +80,7 @@ class SearchResultItem(BaseModel):
 
     frame_id: UUID
     video_id: UUID
+    video_filename: str
     frame_number: int
     similarity: float
     s3_key: str
@@ -114,6 +115,33 @@ def _verify_video_in_project(client: Client, video_id: UUID, project_id: UUID) -
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Video {video_id} not found in project",
         ) from e
+
+
+def _get_video_filenames(
+    client: Client,
+    video_ids: set[UUID],
+) -> dict[UUID, str]:
+    """Get original filenames for multiple videos.
+
+    Args:
+        client: Supabase client instance.
+        video_ids: Set of video UUIDs.
+
+    Returns:
+        Dictionary mapping video_id to original_filename.
+    """
+    if not video_ids:
+        return {}
+
+    result = (
+        client.table("videos")
+        .select("id, original_filename")
+        .in_("id", [str(vid) for vid in video_ids])
+        .execute()
+    )
+
+    rows: list[dict[str, str]] = result.data  # type: ignore[assignment]
+    return {UUID(row["id"]): row["original_filename"] for row in rows}
 
 
 @router.post("", response_model=SearchResponse)
@@ -175,6 +203,10 @@ async def search_frames(
         request.offset : request.offset + request.limit
     ]
 
+    # Get video filenames for the results
+    unique_video_ids = {r.video_id for r in paginated_results}
+    video_filenames = _get_video_filenames(auth.client, unique_video_ids)
+
     # Build response with thumbnail URLs
     results = []
     for r in paginated_results:
@@ -187,6 +219,7 @@ async def search_frames(
             SearchResultItem(
                 frame_id=r.frame_id,
                 video_id=r.video_id,
+                video_filename=video_filenames.get(r.video_id, "Unknown"),
                 frame_number=r.frame_number,
                 similarity=r.similarity,
                 s3_key=r.s3_key,

@@ -499,7 +499,7 @@ class TestSearchInputValidation:
 
         response = client.post(
             f"/api/v1/projects/{project_id}/search",
-            json={"query": "cpu", "limit": 101},
+            json={"query": "cpu", "limit": 501},
         )
         assert response.status_code == 422
 

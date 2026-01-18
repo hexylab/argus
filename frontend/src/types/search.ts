@@ -1,6 +1,7 @@
 export interface SearchResultItem {
   frame_id: string;
   video_id: string;
+  video_filename: string;
   frame_number: number;
   similarity: number;
   s3_key: string;
