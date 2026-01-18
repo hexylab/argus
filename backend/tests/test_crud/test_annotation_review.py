@@ -135,9 +135,33 @@ class TestGetProjectAnnotationStats:
         project_id = uuid4()
 
         mock_client = MagicMock()
-        mock_result = MagicMock()
-        mock_result.data = []
-        mock_client.table.return_value.select.return_value.eq.return_value.execute.return_value = mock_result
+
+        # Create mock results for each count query (total, reviewed, auto, manual)
+        # The new implementation uses count="exact" and head=True
+        mock_total_result = MagicMock()
+        mock_total_result.count = 0
+
+        mock_reviewed_result = MagicMock()
+        mock_reviewed_result.count = 0
+
+        mock_auto_result = MagicMock()
+        mock_auto_result.count = 0
+
+        mock_manual_result = MagicMock()
+        mock_manual_result.count = 0
+
+        # Mock the chain for count queries
+        mock_query = MagicMock()
+        mock_client.table.return_value.select.return_value = mock_query
+        mock_query.eq.return_value = mock_query
+
+        # Return different results for each call
+        mock_query.execute.side_effect = [
+            mock_total_result,
+            mock_reviewed_result,
+            mock_auto_result,
+            mock_manual_result,
+        ]
 
         stats = get_project_annotation_stats(mock_client, project_id)
 
@@ -152,21 +176,39 @@ class TestGetProjectAnnotationStats:
         project_id = uuid4()
 
         mock_client = MagicMock()
-        mock_result = MagicMock()
-        mock_result.data = [
-            {"reviewed": True, "source": "auto"},
-            {"reviewed": True, "source": "auto"},
-            {"reviewed": False, "source": "auto"},
-            {"reviewed": False, "source": "manual"},
-            {"reviewed": True, "source": "manual"},
+
+        # Create mock results for count queries
+        # Total: 5, Reviewed: 3, Auto: 3, Manual: 2
+        mock_total_result = MagicMock()
+        mock_total_result.count = 5
+
+        mock_reviewed_result = MagicMock()
+        mock_reviewed_result.count = 3
+
+        mock_auto_result = MagicMock()
+        mock_auto_result.count = 3
+
+        mock_manual_result = MagicMock()
+        mock_manual_result.count = 2
+
+        # Mock the chain for count queries
+        mock_query = MagicMock()
+        mock_client.table.return_value.select.return_value = mock_query
+        mock_query.eq.return_value = mock_query
+
+        # Return different results for each call
+        mock_query.execute.side_effect = [
+            mock_total_result,
+            mock_reviewed_result,
+            mock_auto_result,
+            mock_manual_result,
         ]
-        mock_client.table.return_value.select.return_value.eq.return_value.execute.return_value = mock_result
 
         stats = get_project_annotation_stats(mock_client, project_id)
 
         assert stats.total_count == 5
         assert stats.reviewed_count == 3
-        assert stats.pending_count == 2
+        assert stats.pending_count == 2  # total - reviewed = 5 - 3 = 2
         assert stats.auto_count == 3
         assert stats.manual_count == 2
 
