@@ -48,3 +48,12 @@ export interface VideoListParams {
   skip?: number;
   limit?: number;
 }
+
+export interface CheckFilenameRequest {
+  filename: string;
+}
+
+export interface CheckFilenameResponse {
+  exists: boolean;
+  existing_video: Video | null;
+}

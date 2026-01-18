@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Dialog,
@@ -22,7 +22,18 @@ import {
   previewImport,
   startImport,
   getImportStatus,
+  checkVideoFilename,
 } from "../actions";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import type { ImportPreviewResponse } from "@/types/import";
 
 interface ExistingLabel {
@@ -453,7 +464,13 @@ export function UploadDialog({
   const [importName, setImportName] = useState("");
   const [importProgress, setImportProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [hasStarted, setHasStarted] = useState(false);
+  // useRef to prevent double execution in React StrictMode
+  const hasStartedRef = useRef(false);
+  // State for duplicate filename confirmation
+  const [showDuplicateConfirm, setShowDuplicateConfirm] = useState(false);
+  const [existingVideoName, setExistingVideoName] = useState<string | null>(
+    null
+  );
 
   // Reset state when dialog closes
   useEffect(() => {
@@ -467,21 +484,36 @@ export function UploadDialog({
       setImportName("");
       setImportProgress(0);
       setError(null);
-      setHasStarted(false);
+      hasStartedRef.current = false;
+      setShowDuplicateConfirm(false);
+      setExistingVideoName(null);
     }
   }, [open]);
 
   // Start upload when dialog opens
+  // Using useRef to prevent double execution in React StrictMode
   useEffect(() => {
-    if (open && initialFile && !hasStarted) {
-      setHasStarted(true);
+    if (open && initialFile && !hasStartedRef.current) {
+      hasStartedRef.current = true; // Synchronous update prevents double execution
       if (fileType === "video") {
-        handleVideoUpload(initialFile);
+        // Check for duplicate filename before uploading
+        checkVideoFilename(projectId, initialFile.name).then((result) => {
+          if (result.data?.exists) {
+            // Show confirmation dialog
+            setExistingVideoName(
+              result.data.existing_video?.filename || initialFile.name
+            );
+            setShowDuplicateConfirm(true);
+          } else {
+            // No duplicate, proceed with upload
+            handleVideoUpload(initialFile);
+          }
+        });
       } else {
         handleZipUpload(initialFile);
       }
     }
-  }, [open, initialFile, hasStarted, fileType]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open, initialFile, fileType, projectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Poll import status for ZIP
   useEffect(() => {
@@ -695,6 +727,17 @@ export function UploadDialog({
     },
     [projectId, existingLabels]
   );
+
+  // Handle duplicate confirmation
+  const handleDuplicateConfirm = useCallback(() => {
+    setShowDuplicateConfirm(false);
+    handleVideoUpload(initialFile);
+  }, [initialFile, handleVideoUpload]);
+
+  const handleDuplicateCancel = useCallback(() => {
+    setShowDuplicateConfirm(false);
+    onOpenChange(false);
+  }, [onOpenChange]);
 
   const handleStartImport = useCallback(async () => {
     if (!importJobId) return;
@@ -1085,57 +1128,83 @@ export function UploadDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{getTitle()}</DialogTitle>
-          {getDescription() ? (
-            <DialogDescription>{getDescription()}</DialogDescription>
-          ) : null}
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{getTitle()}</DialogTitle>
+            {getDescription() ? (
+              <DialogDescription>{getDescription()}</DialogDescription>
+            ) : null}
+          </DialogHeader>
 
-        {renderContent()}
+          {renderContent()}
 
-        <DialogFooter>
-          {step === "processing" && (
-            <Button
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={processingPhase !== "uploading"}
-            >
-              キャンセル
-            </Button>
-          )}
-
-          {step === "preview" ? (
-            <>
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <DialogFooter>
+            {step === "processing" && (
+              <Button
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={processingPhase !== "uploading"}
+              >
                 キャンセル
               </Button>
-              {preview && preview.labels.length > 0 ? (
-                <Button onClick={() => setStep("mapping")}>
-                  ラベルマッピング
+            )}
+
+            {step === "preview" ? (
+              <>
+                <Button variant="outline" onClick={() => onOpenChange(false)}>
+                  キャンセル
                 </Button>
-              ) : (
+                {preview && preview.labels.length > 0 ? (
+                  <Button onClick={() => setStep("mapping")}>
+                    ラベルマッピング
+                  </Button>
+                ) : (
+                  <Button onClick={handleStartImport}>インポート開始</Button>
+                )}
+              </>
+            ) : null}
+
+            {step === "mapping" ? (
+              <>
+                <Button variant="outline" onClick={() => setStep("preview")}>
+                  戻る
+                </Button>
                 <Button onClick={handleStartImport}>インポート開始</Button>
-              )}
-            </>
-          ) : null}
+              </>
+            ) : null}
 
-          {step === "mapping" ? (
-            <>
-              <Button variant="outline" onClick={() => setStep("preview")}>
-                戻る
-              </Button>
-              <Button onClick={handleStartImport}>インポート開始</Button>
-            </>
-          ) : null}
+            {step === "complete" || step === "error" ? (
+              <Button onClick={() => onOpenChange(false)}>閉じる</Button>
+            ) : null}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-          {step === "complete" || step === "error" ? (
-            <Button onClick={() => onOpenChange(false)}>閉じる</Button>
-          ) : null}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      {/* Duplicate filename confirmation dialog */}
+      <AlertDialog
+        open={showDuplicateConfirm}
+        onOpenChange={setShowDuplicateConfirm}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>同名のファイルが存在します</AlertDialogTitle>
+            <AlertDialogDescription>
+              「{existingVideoName}」という名前の映像が既に登録されています。
+              同じファイルを再度アップロードしますか？
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleDuplicateCancel}>
+              キャンセル
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleDuplicateConfirm}>
+              アップロードする
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

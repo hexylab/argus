@@ -171,6 +171,38 @@ def update_video(
     return Video(**row)
 
 
+def check_video_exists_by_filename(
+    client: Client,
+    project_id: UUID,
+    filename: str,
+) -> Video | None:
+    """
+    Check if a video with the given filename exists in the project.
+
+    Args:
+        client: Supabase client instance.
+        project_id: UUID of the project.
+        filename: Original filename to check.
+
+    Returns:
+        Video if found, None otherwise.
+    """
+    result = (
+        client.table("videos")
+        .select("*")
+        .eq("project_id", str(project_id))
+        .eq("original_filename", filename)
+        .limit(1)
+        .execute()
+    )
+
+    if not result.data:
+        return None
+
+    row: dict[str, Any] = result.data[0]  # type: ignore[assignment]
+    return Video(**row)
+
+
 def delete_video(client: Client, video_id: UUID, project_id: UUID) -> bool:
     """
     Delete a video.

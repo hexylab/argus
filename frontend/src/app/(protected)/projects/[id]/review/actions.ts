@@ -174,17 +174,23 @@ export async function approveAnnotations(
     let totalApproved = 0;
     const allErrors: string[] = [];
 
-    console.log(`[approveAnnotations] Starting batch processing for ${annotationIds.length} annotations`);
+    console.log(
+      `[approveAnnotations] Starting batch processing for ${annotationIds.length} annotations`
+    );
 
     for (let i = 0; i < annotationIds.length; i += batchSize) {
       const batch = annotationIds.slice(i, i + batchSize);
-      console.log(`[approveAnnotations] Processing batch ${Math.floor(i / batchSize) + 1}: ${batch.length} items`);
+      console.log(
+        `[approveAnnotations] Processing batch ${Math.floor(i / batchSize) + 1}: ${batch.length} items`
+      );
       const result = await bulkApproveAnnotations(
         accessToken,
         projectId,
         batch
       );
-      console.log(`[approveAnnotations] Batch result: approved=${result.approved_count}`);
+      console.log(
+        `[approveAnnotations] Batch result: approved=${result.approved_count}`
+      );
       totalApproved += result.approved_count;
       if (result.errors) {
         allErrors.push(...result.errors);
@@ -227,17 +233,14 @@ export async function deleteAnnotations(
 
     for (let i = 0; i < annotationIds.length; i += batchSize) {
       const batch = annotationIds.slice(i, i + batchSize);
-      const result = await bulkDeleteAnnotations(
-        accessToken,
-        projectId,
-        batch
-      );
+      const result = await bulkDeleteAnnotations(accessToken, projectId, batch);
       totalDeleted += result.deleted_count;
     }
 
     return {
       result: {
         deleted_count: totalDeleted,
+        errors: [],
       },
     };
   } catch {

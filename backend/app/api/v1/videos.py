@@ -20,6 +20,7 @@ from app.core.storage import (
 from app.crud.project import ProjectNotFoundError
 from app.crud.project import get_project as crud_get_project
 from app.crud.video import VideoNotFoundError
+from app.crud.video import check_video_exists_by_filename as crud_check_video_exists
 from app.crud.video import create_video as crud_create_video
 from app.crud.video import delete_video as crud_delete_video
 from app.crud.video import get_video as crud_get_video
@@ -69,6 +70,19 @@ class UploadCompleteRequest(BaseModel):
     """Request body for marking an upload as complete."""
 
     file_size: int | None = Field(None, ge=0, description="File size in bytes")
+
+
+class CheckFilenameRequest(BaseModel):
+    """Request body for checking if a filename already exists."""
+
+    filename: str = Field(..., min_length=1, max_length=255)
+
+
+class CheckFilenameResponse(BaseModel):
+    """Response for filename existence check."""
+
+    exists: bool
+    existing_video: VideoResponse | None = None
 
 
 def _verify_project_ownership(client: Client, project_id: UUID, owner_id: UUID) -> None:
@@ -132,6 +146,33 @@ async def get_upload_url(
         s3_key=s3_key,
         expires_in=DEFAULT_PRESIGNED_URL_EXPIRES_IN,
     )
+
+
+@router.post("/check-filename", response_model=CheckFilenameResponse)
+async def check_filename_exists(
+    project_id: UUID,
+    data: CheckFilenameRequest,
+    auth: Auth,
+) -> CheckFilenameResponse:
+    """
+    Check if a video with the given filename already exists in the project.
+
+    This can be used to warn users about duplicate uploads.
+    """
+    owner_id = UUID(auth.user.sub)
+
+    # Verify project ownership
+    _verify_project_ownership(auth.client, project_id, owner_id)
+
+    existing_video = crud_check_video_exists(auth.client, project_id, data.filename)
+
+    if existing_video:
+        return CheckFilenameResponse(
+            exists=True,
+            existing_video=_video_to_response(existing_video),
+        )
+
+    return CheckFilenameResponse(exists=False, existing_video=None)
 
 
 @router.post("/{video_id}/complete", response_model=Video)

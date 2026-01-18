@@ -8,6 +8,7 @@ import {
   getUploadUrl,
   completeUpload,
   deleteVideo,
+  checkFilename,
 } from "@/lib/api/videos";
 import { getLabels } from "@/lib/api/labels";
 import {
@@ -17,7 +18,11 @@ import {
   getImportStatus as apiGetImportStatus,
 } from "@/lib/api/imports";
 import type { Project } from "@/types/project";
-import type { Video, UploadUrlResponse } from "@/types/video";
+import type {
+  Video,
+  UploadUrlResponse,
+  CheckFilenameResponse,
+} from "@/types/video";
 import type { Label } from "@/types/label";
 import type {
   ImportFormat,
@@ -267,5 +272,27 @@ export async function getImportStatus(
   } catch (error) {
     console.error("Failed to get import status:", error);
     return { error: "ステータスの取得に失敗しました" };
+  }
+}
+
+export async function checkVideoFilename(
+  projectId: string,
+  filename: string
+): Promise<{
+  data?: CheckFilenameResponse;
+  error?: string;
+}> {
+  try {
+    const accessToken = await getAccessToken();
+
+    if (!accessToken) {
+      return { error: "認証が必要です" };
+    }
+
+    const data = await checkFilename(accessToken, projectId, { filename });
+    return { data };
+  } catch (error) {
+    console.error("Failed to check filename:", error);
+    return { error: "ファイル名のチェックに失敗しました" };
   }
 }

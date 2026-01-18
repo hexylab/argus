@@ -5,6 +5,8 @@ import type {
   UploadUrlResponse,
   UploadCompleteRequest,
   VideoListParams,
+  CheckFilenameRequest,
+  CheckFilenameResponse,
 } from "@/types/video";
 
 export async function getVideos(
@@ -77,4 +79,19 @@ export async function deleteVideo(
     method: "DELETE",
     accessToken,
   });
+}
+
+export async function checkFilename(
+  accessToken: string,
+  projectId: string,
+  data: CheckFilenameRequest
+): Promise<CheckFilenameResponse> {
+  return apiClient<CheckFilenameResponse>(
+    `/api/v1/projects/${projectId}/videos/check-filename`,
+    {
+      method: "POST",
+      accessToken,
+      body: JSON.stringify(data),
+    }
+  );
 }
