@@ -177,7 +177,9 @@ export async function approveAnnotations(
     return { result };
   } catch (e) {
     console.error("approveAnnotations error:", e);
-    return { error: `承認に失敗しました: ${e instanceof Error ? e.message : String(e)}` };
+    return {
+      error: `承認に失敗しました: ${e instanceof Error ? e.message : String(e)}`,
+    };
   }
 }
 

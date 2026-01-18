@@ -50,16 +50,21 @@ def get_frames_by_ids(
     if not frame_ids:
         return []
 
-    # Query frames by IDs
-    result = (
-        client.table("frames")
-        .select("*")
-        .in_("id", [str(fid) for fid in frame_ids])
-        .execute()
-    )
+    all_frames: list[dict[str, Any]] = []
 
-    rows: list[dict[str, Any]] = result.data
-    return rows
+    # Process in batches to avoid URI too long error
+    batch_size = 50
+    for i in range(0, len(frame_ids), batch_size):
+        batch = frame_ids[i : i + batch_size]
+        result = (
+            client.table("frames")
+            .select("*")
+            .in_("id", [str(fid) for fid in batch])
+            .execute()
+        )
+        all_frames.extend(result.data)
+
+    return all_frames
 
 
 def convert_bbox_to_normalized(

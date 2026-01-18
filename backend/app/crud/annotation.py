@@ -35,9 +35,7 @@ def _determine_reviewed_status(source: AnnotationSource | None) -> bool:
     Returns:
         Whether the annotation should be marked as reviewed.
     """
-    if source == AnnotationSource.AUTO:
-        return False
-    return True
+    return source != AnnotationSource.AUTO
 
 
 def create_annotation(client: Client, data: AnnotationCreate) -> Annotation:

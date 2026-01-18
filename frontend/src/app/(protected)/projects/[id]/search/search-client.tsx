@@ -1,15 +1,13 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { performSearch } from "./actions";
+import { searchAllFrames } from "./actions";
 import { SearchForm } from "./components/search-form";
 import { SearchResults, ResultsSkeleton } from "./components/search-results";
 import { AutoAnnotateDialog } from "./components/auto-annotate-dialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { SearchResultItem } from "@/types/search";
-
-const PAGE_SIZE = 20;
 
 interface SearchClientProps {
   projectId: string;
@@ -35,12 +33,9 @@ function SparkleIcon({ className }: { className?: string }) {
 }
 
 export function SearchClient({ projectId }: SearchClientProps) {
-  const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResultItem[]>([]);
   const [total, setTotal] = useState(0);
-  const [hasMore, setHasMore] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
 
@@ -55,58 +50,27 @@ export function SearchClient({ projectId }: SearchClientProps) {
 
   const handleSearch = useCallback(
     async (searchQuery: string) => {
-      setQuery(searchQuery);
       setIsLoading(true);
       setError(null);
       setHasSearched(true);
       // Clear selection when new search is performed
       setSelectedFrames(new Set());
 
-      const result = await performSearch(projectId, {
-        query: searchQuery,
-        limit: PAGE_SIZE,
-        offset: 0,
-      });
+      const result = await searchAllFrames(projectId, searchQuery);
 
       if (result.error || !result.data) {
         setError(result.error ?? "検索中にエラーが発生しました");
         setResults([]);
         setTotal(0);
-        setHasMore(false);
       } else {
         setResults(result.data.results);
         setTotal(result.data.total);
-        setHasMore(result.data.has_more);
       }
 
       setIsLoading(false);
     },
     [projectId]
   );
-
-  const handleLoadMore = useCallback(async () => {
-    if (isLoadingMore || !hasMore) {
-      return;
-    }
-
-    setIsLoadingMore(true);
-
-    const result = await performSearch(projectId, {
-      query,
-      limit: PAGE_SIZE,
-      offset: results.length,
-    });
-
-    if (result.error || !result.data) {
-      setError(result.error ?? "読み込み中にエラーが発生しました");
-    } else {
-      setResults((prev) => [...prev, ...result.data!.results]);
-      setTotal(result.data.total);
-      setHasMore(result.data.has_more);
-    }
-
-    setIsLoadingMore(false);
-  }, [projectId, query, results.length, isLoadingMore, hasMore]);
 
   const handleSelectionChange = useCallback(
     (frameId: string, selected: boolean) => {
@@ -161,11 +125,7 @@ export function SearchClient({ projectId }: SearchClientProps) {
   return (
     <div className="space-y-6">
       {/* Search Form */}
-      <SearchForm
-        onSearch={handleSearch}
-        isLoading={isLoading}
-        initialQuery={query}
-      />
+      <SearchForm onSearch={handleSearch} isLoading={isLoading} />
 
       {/* Action Bar - Selection Mode Toggle & Auto-Annotation Button */}
       {hasSearched && results.length > 0 && !isLoading ? (
@@ -293,10 +253,7 @@ export function SearchClient({ projectId }: SearchClientProps) {
         <SearchResults
           results={results}
           total={total}
-          hasMore={hasMore}
           projectId={projectId}
-          isLoadingMore={isLoadingMore}
-          onLoadMore={handleLoadMore}
           selectionMode={selectionMode}
           selectedFrames={selectedFrames}
           onSelectionChange={handleSelectionChange}

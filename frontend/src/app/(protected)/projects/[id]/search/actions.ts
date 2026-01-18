@@ -43,6 +43,58 @@ export async function performSearch(
   }
 }
 
+/**
+ * Search all frames with automatic pagination.
+ * Loads all matching results by making multiple requests if needed.
+ */
+export async function searchAllFrames(
+  projectId: string,
+  query: string,
+  params: Omit<SearchRequest, "query" | "limit" | "offset"> = {}
+): Promise<{
+  data?: SearchResponse;
+  error?: string;
+}> {
+  try {
+    const accessToken = await getAccessToken();
+
+    if (!accessToken) {
+      return { error: "認証が必要です" };
+    }
+
+    const allResults: SearchResponse["results"] = [];
+    const batchSize = 500; // API maximum
+    let offset = 0;
+    let hasMore = true;
+    let total = 0;
+
+    while (hasMore) {
+      const response = await searchFrames(accessToken, projectId, {
+        query,
+        ...params,
+        limit: batchSize,
+        offset,
+      });
+
+      allResults.push(...response.results);
+      total = response.total;
+      hasMore = response.has_more;
+      offset += batchSize;
+    }
+
+    return {
+      data: {
+        results: allResults,
+        total,
+        has_more: false,
+      },
+    };
+  } catch (error) {
+    console.error("Failed to search all frames:", error);
+    return { error: "検索に失敗しました" };
+  }
+}
+
 export async function fetchLabels(projectId: string): Promise<{
   data?: Label[];
   error?: string;

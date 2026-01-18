@@ -68,7 +68,7 @@ class SearchRequest(BaseModel):
 
     query: str = Field(..., min_length=1, max_length=500, description="Text query")
     video_id: UUID | None = Field(None, description="Filter by specific video")
-    limit: int = Field(20, ge=1, le=100, description="Maximum results to return")
+    limit: int = Field(100, ge=1, le=500, description="Maximum results to return")
     offset: int = Field(0, ge=0, description="Number of results to skip")
     min_similarity: float = Field(
         0.0, ge=-1.0, le=1.0, description="Minimum similarity threshold"
