@@ -186,15 +186,18 @@ class TestProcessFrameForAnnotation:
             "s3_key": "test/frame.jpg",
         }
 
-        annotations = process_frame_for_annotation(
+        annotations, skipped = process_frame_for_annotation(
             frame=frame,
             label_id=label_id,
             label_name="test object",
             created_by=created_by,
             confidence_threshold=0.5,
+            iou_threshold=0.5,
+            existing_bboxes=[],
         )
 
         assert len(annotations) == 1
+        assert skipped == 0
         assert annotations[0].frame_id == frame_id
         assert annotations[0].label_id == label_id
         assert annotations[0].confidence == 0.95
@@ -232,16 +235,19 @@ class TestProcessFrameForAnnotation:
 
         frame = {"id": str(uuid4()), "s3_key": "test/frame.jpg"}
 
-        annotations = process_frame_for_annotation(
+        annotations, skipped = process_frame_for_annotation(
             frame=frame,
             label_id=uuid4(),
             label_name="test",
             created_by=uuid4(),
             confidence_threshold=0.5,
+            iou_threshold=0.5,
+            existing_bboxes=[],
         )
 
         # Only high confidence detection should be included
         assert len(annotations) == 1
+        assert skipped == 0
         assert annotations[0].confidence == 0.8
 
 
@@ -250,12 +256,14 @@ class TestAutoAnnotateFramesTask:
 
     @patch("app.tasks.auto_annotation.bulk_create_annotations")
     @patch("app.tasks.auto_annotation.process_frame_for_annotation")
+    @patch("app.tasks.auto_annotation.get_existing_annotations_for_frames")
     @patch("app.tasks.auto_annotation.get_frames_by_ids")
     @patch("app.tasks.auto_annotation.get_supabase_client")
     def test_auto_annotate_success(
         self,
         mock_get_client: MagicMock,
         mock_get_frames: MagicMock,
+        mock_get_existing: MagicMock,
         mock_process_frame: MagicMock,
         mock_bulk_create: MagicMock,
     ) -> None:
@@ -274,6 +282,9 @@ class TestAutoAnnotateFramesTask:
             {"id": str(frame_id), "s3_key": "test/frame.jpg"}
         ]
 
+        # Mock existing annotations (empty for this test)
+        mock_get_existing.return_value = {frame_id: []}
+
         # Mock annotation creation
         mock_annotation = AnnotationCreate(
             frame_id=frame_id,
@@ -287,7 +298,7 @@ class TestAutoAnnotateFramesTask:
             source=AnnotationSource.AUTO,
             reviewed=False,
         )
-        mock_process_frame.return_value = [mock_annotation]
+        mock_process_frame.return_value = ([mock_annotation], 0)
 
         result = auto_annotate_frames.run(
             frame_ids=[str(frame_id)],
@@ -295,11 +306,13 @@ class TestAutoAnnotateFramesTask:
             label_name="test object",
             created_by=str(created_by),
             confidence_threshold=0.5,
+            iou_threshold=0.5,
         )
 
         assert result["status"] == "success"
         assert result["frame_count"] == 1
         assert result["annotation_count"] == 1
+        assert result["skipped_count"] == 0
         assert result["failed_count"] == 0
         mock_bulk_create.assert_called_once()
 
@@ -330,12 +343,14 @@ class TestAutoAnnotateFramesTask:
 
     @patch("app.tasks.auto_annotation.bulk_create_annotations")
     @patch("app.tasks.auto_annotation.process_frame_for_annotation")
+    @patch("app.tasks.auto_annotation.get_existing_annotations_for_frames")
     @patch("app.tasks.auto_annotation.get_frames_by_ids")
     @patch("app.tasks.auto_annotation.get_supabase_client")
     def test_auto_annotate_partial_failure(
         self,
         mock_get_client: MagicMock,
         mock_get_frames: MagicMock,
+        mock_get_existing: MagicMock,
         mock_process_frame: MagicMock,
         mock_bulk_create: MagicMock,
     ) -> None:
@@ -355,6 +370,9 @@ class TestAutoAnnotateFramesTask:
             {"id": str(frame_ids[1]), "s3_key": "test/frame_1.jpg"},
         ]
 
+        # Mock existing annotations (empty for this test)
+        mock_get_existing.return_value = {fid: [] for fid in frame_ids}
+
         # First frame succeeds, second fails
         mock_annotation = AnnotationCreate(
             frame_id=frame_ids[0],
@@ -368,53 +386,64 @@ class TestAutoAnnotateFramesTask:
             source=AnnotationSource.AUTO,
             reviewed=False,
         )
-        mock_process_frame.side_effect = [[mock_annotation], Exception("Failed")]
+        mock_process_frame.side_effect = [([mock_annotation], 0), Exception("Failed")]
 
         result = auto_annotate_frames.run(
             frame_ids=[str(fid) for fid in frame_ids],
             label_id=str(label_id),
             label_name="test",
             created_by=str(created_by),
+            iou_threshold=0.5,
         )
 
         assert result["status"] == "success"
         assert result["frame_count"] == 1
         assert result["failed_count"] == 1
         assert result["annotation_count"] == 1
+        assert result["skipped_count"] == 0
 
     @patch("app.tasks.auto_annotation.bulk_create_annotations")
     @patch("app.tasks.auto_annotation.process_frame_for_annotation")
+    @patch("app.tasks.auto_annotation.get_existing_annotations_for_frames")
     @patch("app.tasks.auto_annotation.get_frames_by_ids")
     @patch("app.tasks.auto_annotation.get_supabase_client")
     def test_auto_annotate_no_annotations_created(
         self,
         mock_get_client: MagicMock,
         mock_get_frames: MagicMock,
+        mock_get_existing: MagicMock,
         mock_process_frame: MagicMock,
         mock_bulk_create: MagicMock,
     ) -> None:
         """Test when no annotations are created (all below threshold)."""
         from app.tasks.auto_annotation import auto_annotate_frames
 
+        frame_id = uuid4()
+
         mock_client = MagicMock()
         mock_get_client.return_value = mock_client
 
         mock_get_frames.return_value = [
-            {"id": str(uuid4()), "s3_key": "test/frame.jpg"}
+            {"id": str(frame_id), "s3_key": "test/frame.jpg"}
         ]
 
+        # Mock existing annotations (empty for this test)
+        mock_get_existing.return_value = {frame_id: []}
+
         # No annotations created (all detections below threshold)
-        mock_process_frame.return_value = []
+        mock_process_frame.return_value = ([], 0)
 
         result = auto_annotate_frames.run(
-            frame_ids=[str(uuid4())],
+            frame_ids=[str(frame_id)],
             label_id=str(uuid4()),
             label_name="test",
             created_by=str(uuid4()),
+            iou_threshold=0.5,
         )
 
         assert result["status"] == "success"
         assert result["frame_count"] == 1
         assert result["annotation_count"] == 0
+        assert result["skipped_count"] == 0
         # bulk_create should not be called when no annotations
         mock_bulk_create.assert_not_called()

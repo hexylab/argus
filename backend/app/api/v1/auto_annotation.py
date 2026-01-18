@@ -27,6 +27,13 @@ class AutoAnnotateOptions(BaseModel):
         le=1.0,
         description="Minimum confidence threshold (0-1)",
     )
+    iou_threshold: float = Field(
+        default=0.5,
+        ge=0.0,
+        le=1.0,
+        description="IoU threshold for duplicate detection (0-1). "
+        "Detections with IoU >= threshold against existing annotations are skipped.",
+    )
 
 
 class AutoAnnotateRequest(BaseModel):
@@ -126,6 +133,7 @@ async def start_auto_annotation(
         label_name=label.name,
         created_by=str(owner_id),
         confidence_threshold=options.min_confidence,
+        iou_threshold=options.iou_threshold,
     )
 
     return AutoAnnotateResponse(

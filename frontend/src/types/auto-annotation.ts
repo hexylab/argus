@@ -1,5 +1,6 @@
 export interface AutoAnnotateOptions {
   min_confidence: number;
+  iou_threshold: number;
 }
 
 export interface AutoAnnotateRequest {
@@ -20,6 +21,7 @@ export interface TaskStatusResponse {
   result?: {
     frame_count: number;
     annotation_count: number;
+    skipped_count: number;
     failed_count: number;
     status: string;
   };

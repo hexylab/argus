@@ -303,7 +303,7 @@ export function SearchClient({ projectId }: SearchClientProps) {
         open={isAutoAnnotateDialogOpen}
         onOpenChange={setIsAutoAnnotateDialogOpen}
         projectId={projectId}
-        selectedFrameIds={Array.from(selectedFrames)}
+        selectedFrames={results.filter((r) => selectedFrames.has(r.frame_id))}
         onComplete={handleAutoAnnotateComplete}
       />
     </div>

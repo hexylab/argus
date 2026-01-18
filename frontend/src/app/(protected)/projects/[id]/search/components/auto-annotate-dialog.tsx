@@ -23,12 +23,21 @@ import {
 
 type DialogState = "config" | "processing" | "success" | "error";
 
+import type { SearchResultItem } from "@/types/search";
+
 interface AutoAnnotateDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projectId: string;
-  selectedFrameIds: string[];
+  selectedFrames: SearchResultItem[];
   onComplete?: () => void;
+}
+
+// Video group for exclusion UI
+interface VideoGroup {
+  videoId: string;
+  videoFilename: string;
+  frameCount: number;
 }
 
 // Sparkle icon for AI actions
@@ -164,6 +173,156 @@ function ConfidenceSlider({
 
       <p className="text-xs text-muted-foreground leading-relaxed">
         この閾値以上の信頼度を持つ検出結果のみをアノテーションとして保存します
+      </p>
+    </div>
+  );
+}
+
+// IoU threshold slider for duplicate detection
+function IouThresholdSlider({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  const percentage = Math.round(value * 100);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <Label className="text-sm font-medium">重複検出閾値 (IoU)</Label>
+        <div className="flex items-center gap-1.5 tabular-nums text-sm font-semibold text-blue-600 dark:text-blue-400">
+          <span className="text-lg">{percentage}</span>
+          <span className="text-xs opacity-70">%</span>
+        </div>
+      </div>
+
+      {/* Custom slider track */}
+      <div className="relative">
+        <div className="relative h-2 rounded-full bg-blue-500/20">
+          {/* Filled portion */}
+          <div
+            className="absolute inset-y-0 left-0 rounded-full bg-blue-500"
+            style={{ width: `${percentage}%` }}
+          />
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={percentage}
+            onChange={(e) => onChange(parseInt(e.target.value) / 100)}
+            className={cn(
+              "absolute inset-0 w-full h-full appearance-none bg-transparent cursor-pointer",
+              "[&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:size-4",
+              "[&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white",
+              "[&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-blue-500",
+              "[&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:cursor-grab",
+              "[&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:hover:scale-110",
+              "[&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:size-4",
+              "[&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-white",
+              "[&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-blue-500",
+              "[&::-moz-range-thumb]:shadow-md [&::-moz-range-thumb]:cursor-grab"
+            )}
+          />
+        </div>
+      </div>
+
+      <p className="text-xs text-muted-foreground leading-relaxed">
+        既存のアノテーションとの重複判定に使用します。
+        高いほど厳密に判定（重複スキップが少ない）、低いほど緩く判定（重複スキップが多い）
+      </p>
+    </div>
+  );
+}
+
+// Video exclusion selector
+function VideoExclusionSelector({
+  videoGroups,
+  excludedVideoIds,
+  onToggle,
+}: {
+  videoGroups: VideoGroup[];
+  excludedVideoIds: Set<string>;
+  onToggle: (videoId: string) => void;
+}) {
+  if (videoGroups.length <= 1) {
+    return null;
+  }
+
+  const totalFrames = videoGroups.reduce((sum, g) => sum + g.frameCount, 0);
+  const includedFrames = videoGroups
+    .filter((g) => !excludedVideoIds.has(g.videoId))
+    .reduce((sum, g) => sum + g.frameCount, 0);
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <Label className="text-sm font-medium">対象ビデオ</Label>
+        <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded tabular-nums">
+          {includedFrames} / {totalFrames} フレーム
+        </span>
+      </div>
+
+      <div className="rounded-lg border divide-y max-h-32 overflow-y-auto">
+        {videoGroups.map((group) => {
+          const isExcluded = excludedVideoIds.has(group.videoId);
+          return (
+            <button
+              key={group.videoId}
+              type="button"
+              onClick={() => onToggle(group.videoId)}
+              className={cn(
+                "flex items-center gap-3 w-full px-3 py-2 text-left",
+                "transition-all duration-150",
+                isExcluded ? "bg-muted/30 opacity-60" : "hover:bg-muted/50"
+              )}
+            >
+              {/* Checkbox */}
+              <div
+                className={cn(
+                  "size-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors",
+                  isExcluded
+                    ? "border-muted-foreground/30 bg-transparent"
+                    : "border-primary bg-primary"
+                )}
+              >
+                {!isExcluded && (
+                  <svg
+                    className="size-3 text-white"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={3}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M4.5 12.75l6 6 9-13.5"
+                    />
+                  </svg>
+                )}
+              </div>
+
+              <span
+                className={cn(
+                  "text-sm flex-1 truncate",
+                  isExcluded ? "text-muted-foreground" : "text-foreground"
+                )}
+              >
+                {group.videoFilename}
+              </span>
+
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {group.frameCount} フレーム
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <p className="text-xs text-muted-foreground leading-relaxed">
+        除外したいビデオのチェックを外してください
       </p>
     </div>
   );
@@ -358,6 +517,14 @@ function ResultStats({
     },
   ];
 
+  if (result.skipped_count > 0) {
+    stats.push({
+      label: "重複スキップ",
+      value: result.skipped_count,
+      color: "text-blue-600 dark:text-blue-400",
+    });
+  }
+
   if (result.failed_count > 0) {
     stats.push({
       label: "失敗",
@@ -366,8 +533,16 @@ function ResultStats({
     });
   }
 
+  // Determine grid columns based on number of stats
+  const gridCols =
+    stats.length <= 2
+      ? "grid-cols-2"
+      : stats.length === 3
+        ? "grid-cols-3"
+        : "grid-cols-2 sm:grid-cols-4";
+
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <div className={cn("grid gap-3", gridCols)}>
       {stats.map((stat) => (
         <div
           key={stat.label}
@@ -390,17 +565,66 @@ export function AutoAnnotateDialog({
   open,
   onOpenChange,
   projectId,
-  selectedFrameIds,
+  selectedFrames,
   onComplete,
 }: AutoAnnotateDialogProps) {
   const [state, setState] = useState<DialogState>("config");
   const [labels, setLabels] = useState<LabelType[]>([]);
   const [selectedLabelId, setSelectedLabelId] = useState<string>("");
   const [minConfidence, setMinConfidence] = useState(0.5);
+  const [iouThreshold, setIouThreshold] = useState(0.5);
+  const [excludedVideoIds, setExcludedVideoIds] = useState<Set<string>>(
+    new Set()
+  );
   const [isLoadingLabels, setIsLoadingLabels] = useState(false);
   const [taskId, setTaskId] = useState<string | null>(null);
   const [taskStatus, setTaskStatus] = useState<TaskStatusResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Compute video groups from selected frames
+  const videoGroups = useMemo((): VideoGroup[] => {
+    const groupMap = new Map<
+      string,
+      { videoId: string; videoFilename: string; frameCount: number }
+    >();
+
+    for (const frame of selectedFrames) {
+      const existing = groupMap.get(frame.video_id);
+      if (existing) {
+        existing.frameCount++;
+      } else {
+        groupMap.set(frame.video_id, {
+          videoId: frame.video_id,
+          videoFilename: frame.video_filename,
+          frameCount: 1,
+        });
+      }
+    }
+
+    return Array.from(groupMap.values()).sort((a, b) =>
+      a.videoFilename.localeCompare(b.videoFilename)
+    );
+  }, [selectedFrames]);
+
+  // Compute filtered frame IDs (excluding frames from excluded videos)
+  const filteredFrameIds = useMemo(() => {
+    return selectedFrames
+      .filter((frame) => !excludedVideoIds.has(frame.video_id))
+      .map((frame) => frame.frame_id);
+  }, [selectedFrames, excludedVideoIds]);
+
+  // Toggle video exclusion
+  const handleVideoToggle = useCallback((videoId: string) => {
+    setExcludedVideoIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(videoId)) {
+        next.delete(videoId);
+      } else {
+        next.add(videoId);
+      }
+      return next;
+    });
+  }, []);
 
   // Fetch labels when dialog opens
   useEffect(() => {
@@ -428,6 +652,7 @@ export function AutoAnnotateDialog({
       setTaskId(null);
       setTaskStatus(null);
       setError(null);
+      setExcludedVideoIds(new Set());
     }
   }, [open]);
 
@@ -462,7 +687,7 @@ export function AutoAnnotateDialog({
   }, [taskId, projectId, state]);
 
   const handleStart = useCallback(async () => {
-    if (!selectedLabelId) {
+    if (!selectedLabelId || filteredFrameIds.length === 0) {
       return;
     }
 
@@ -470,10 +695,11 @@ export function AutoAnnotateDialog({
     setError(null);
 
     const result = await performAutoAnnotation(projectId, {
-      frame_ids: selectedFrameIds,
+      frame_ids: filteredFrameIds,
       label_id: selectedLabelId,
       options: {
         min_confidence: minConfidence,
+        iou_threshold: iouThreshold,
       },
     });
 
@@ -490,7 +716,13 @@ export function AutoAnnotateDialog({
         status: "PENDING",
       });
     }
-  }, [projectId, selectedFrameIds, selectedLabelId, minConfidence]);
+  }, [
+    projectId,
+    filteredFrameIds,
+    selectedLabelId,
+    minConfidence,
+    iouThreshold,
+  ]);
 
   const handleClose = useCallback(() => {
     if (state === "success") {
@@ -511,7 +743,9 @@ export function AutoAnnotateDialog({
             自動アノテーション
           </DialogTitle>
           <DialogDescription>
-            {selectedFrameIds.length} 件のフレームをAIで自動処理します
+            {filteredFrameIds.length === selectedFrames.length
+              ? `${selectedFrames.length} 件のフレームをAIで自動処理します`
+              : `${filteredFrameIds.length} / ${selectedFrames.length} 件のフレームをAIで自動処理します`}
           </DialogDescription>
         </DialogHeader>
 
@@ -524,9 +758,18 @@ export function AutoAnnotateDialog({
               onChange={setSelectedLabelId}
               isLoading={isLoadingLabels}
             />
+            <VideoExclusionSelector
+              videoGroups={videoGroups}
+              excludedVideoIds={excludedVideoIds}
+              onToggle={handleVideoToggle}
+            />
             <ConfidenceSlider
               value={minConfidence}
               onChange={setMinConfidence}
+            />
+            <IouThresholdSlider
+              value={iouThreshold}
+              onChange={setIouThreshold}
             />
           </div>
         )}
@@ -544,7 +787,7 @@ export function AutoAnnotateDialog({
                     : "処理中..."}
               </p>
               <p className="text-xs text-muted-foreground">
-                {selectedFrameIds.length} 件のフレームを処理しています
+                {filteredFrameIds.length} 件のフレームを処理しています
               </p>
             </div>
             <GradientProgress indeterminate />
@@ -637,7 +880,11 @@ export function AutoAnnotateDialog({
               </Button>
               <Button
                 onClick={handleStart}
-                disabled={!selectedLabelId || labels.length === 0}
+                disabled={
+                  !selectedLabelId ||
+                  labels.length === 0 ||
+                  filteredFrameIds.length === 0
+                }
                 className={cn(
                   "flex-1 sm:flex-none gap-2",
                   "bg-gradient-to-r from-primary to-primary/90",
