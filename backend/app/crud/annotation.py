@@ -382,6 +382,8 @@ def get_project_annotation_stats(
     """
     Get annotation statistics for a project.
 
+    Uses count queries to avoid Supabase row limits (max_rows=1000).
+
     Args:
         client: Supabase client instance.
         project_id: UUID of the project.
@@ -389,21 +391,46 @@ def get_project_annotation_stats(
     Returns:
         Annotation statistics.
     """
-    # Get all annotations for the project
-    result = (
+    # Total count
+    total_result = (
         client.table("annotations")
-        .select("reviewed, source, frames!inner(videos!inner(project_id))")
+        .select("*, frames!inner(videos!inner(project_id))", count="exact", head=True)
         .eq("frames.videos.project_id", str(project_id))
         .execute()
     )
+    total_count = total_result.count or 0
 
-    rows: list[dict[str, Any]] = result.data or []  # type: ignore[assignment]
+    # Reviewed count
+    reviewed_result = (
+        client.table("annotations")
+        .select("*, frames!inner(videos!inner(project_id))", count="exact", head=True)
+        .eq("frames.videos.project_id", str(project_id))
+        .eq("reviewed", True)
+        .execute()
+    )
+    reviewed_count = reviewed_result.count or 0
 
-    total_count = len(rows)
-    reviewed_count = sum(1 for r in rows if r.get("reviewed"))
+    # Auto count
+    auto_result = (
+        client.table("annotations")
+        .select("*, frames!inner(videos!inner(project_id))", count="exact", head=True)
+        .eq("frames.videos.project_id", str(project_id))
+        .eq("source", "auto")
+        .execute()
+    )
+    auto_count = auto_result.count or 0
+
+    # Manual count
+    manual_result = (
+        client.table("annotations")
+        .select("*, frames!inner(videos!inner(project_id))", count="exact", head=True)
+        .eq("frames.videos.project_id", str(project_id))
+        .eq("source", "manual")
+        .execute()
+    )
+    manual_count = manual_result.count or 0
+
     pending_count = total_count - reviewed_count
-    auto_count = sum(1 for r in rows if r.get("source") == "auto")
-    manual_count = sum(1 for r in rows if r.get("source") == "manual")
 
     return AnnotationReviewStats(
         total_count=total_count,

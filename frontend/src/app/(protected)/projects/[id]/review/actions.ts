@@ -169,12 +169,36 @@ export async function approveAnnotations(
       return { error: "認証が必要です" };
     }
 
-    const result = await bulkApproveAnnotations(
-      accessToken,
-      projectId,
-      annotationIds
-    );
-    return { result };
+    // Process in batches of 1000 (API limit)
+    const batchSize = 1000;
+    let totalApproved = 0;
+    const allErrors: string[] = [];
+
+    console.log(`[approveAnnotations] Starting batch processing for ${annotationIds.length} annotations`);
+
+    for (let i = 0; i < annotationIds.length; i += batchSize) {
+      const batch = annotationIds.slice(i, i + batchSize);
+      console.log(`[approveAnnotations] Processing batch ${Math.floor(i / batchSize) + 1}: ${batch.length} items`);
+      const result = await bulkApproveAnnotations(
+        accessToken,
+        projectId,
+        batch
+      );
+      console.log(`[approveAnnotations] Batch result: approved=${result.approved_count}`);
+      totalApproved += result.approved_count;
+      if (result.errors) {
+        allErrors.push(...result.errors);
+      }
+    }
+
+    console.log(`[approveAnnotations] Total approved: ${totalApproved}`);
+
+    return {
+      result: {
+        approved_count: totalApproved,
+        errors: allErrors,
+      },
+    };
   } catch (e) {
     console.error("approveAnnotations error:", e);
     return {
@@ -197,12 +221,25 @@ export async function deleteAnnotations(
       return { error: "認証が必要です" };
     }
 
-    const result = await bulkDeleteAnnotations(
-      accessToken,
-      projectId,
-      annotationIds
-    );
-    return { result };
+    // Process in batches of 1000 (API limit)
+    const batchSize = 1000;
+    let totalDeleted = 0;
+
+    for (let i = 0; i < annotationIds.length; i += batchSize) {
+      const batch = annotationIds.slice(i, i + batchSize);
+      const result = await bulkDeleteAnnotations(
+        accessToken,
+        projectId,
+        batch
+      );
+      totalDeleted += result.deleted_count;
+    }
+
+    return {
+      result: {
+        deleted_count: totalDeleted,
+      },
+    };
   } catch {
     return { error: "削除に失敗しました" };
   }
