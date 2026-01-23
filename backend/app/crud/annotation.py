@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
+from postgrest.types import CountMethod
 from supabase import Client
 
 from app.models.annotation import (
@@ -286,7 +287,7 @@ def bulk_create_annotations(
             }
         )
 
-    result = client.table("annotations").insert(insert_data).execute()
+    result = client.table("annotations").insert(insert_data).execute()  # type: ignore[arg-type]
 
     rows: list[dict[str, Any]] = result.data  # type: ignore[assignment]
     return [Annotation(**row) for row in rows]
@@ -394,7 +395,11 @@ def get_project_annotation_stats(
     # Total count
     total_result = (
         client.table("annotations")
-        .select("*, frames!inner(videos!inner(project_id))", count="exact", head=True)
+        .select(
+            "*, frames!inner(videos!inner(project_id))",
+            count=CountMethod.exact,
+            head=True,
+        )
         .eq("frames.videos.project_id", str(project_id))
         .execute()
     )
@@ -403,7 +408,11 @@ def get_project_annotation_stats(
     # Reviewed count
     reviewed_result = (
         client.table("annotations")
-        .select("*, frames!inner(videos!inner(project_id))", count="exact", head=True)
+        .select(
+            "*, frames!inner(videos!inner(project_id))",
+            count=CountMethod.exact,
+            head=True,
+        )
         .eq("frames.videos.project_id", str(project_id))
         .eq("reviewed", True)
         .execute()
@@ -413,7 +422,11 @@ def get_project_annotation_stats(
     # Auto count
     auto_result = (
         client.table("annotations")
-        .select("*, frames!inner(videos!inner(project_id))", count="exact", head=True)
+        .select(
+            "*, frames!inner(videos!inner(project_id))",
+            count=CountMethod.exact,
+            head=True,
+        )
         .eq("frames.videos.project_id", str(project_id))
         .eq("source", "auto")
         .execute()
@@ -423,7 +436,11 @@ def get_project_annotation_stats(
     # Manual count
     manual_result = (
         client.table("annotations")
-        .select("*, frames!inner(videos!inner(project_id))", count="exact", head=True)
+        .select(
+            "*, frames!inner(videos!inner(project_id))",
+            count=CountMethod.exact,
+            head=True,
+        )
         .eq("frames.videos.project_id", str(project_id))
         .eq("source", "manual")
         .execute()
