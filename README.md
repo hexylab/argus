@@ -1,5 +1,14 @@
 # Argus
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Backend CI](https://github.com/hexylab/argus/actions/workflows/backend-ci.yml/badge.svg)](https://github.com/hexylab/argus/actions/workflows/backend-ci.yml)
+[![Frontend CI](https://github.com/hexylab/argus/actions/workflows/frontend-ci.yml/badge.svg)](https://github.com/hexylab/argus/actions/workflows/frontend-ci.yml)
+
+[![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Next.js](https://img.shields.io/badge/Next.js-15-000000?logo=next.js&logoColor=white)](https://nextjs.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+
 映像AIモデルの学習データ生成を自動化するプラットフォーム
 
 ## 概要
@@ -195,26 +204,14 @@ argus/
 - 「red car on the street」
 - 「computer on desk」
 
+## コントリビューション
+
+プルリクエストや Issue の報告を歓迎します。
+
+[![GitHub issues](https://img.shields.io/github/issues/hexylab/argus)](https://github.com/hexylab/argus/issues)
+[![GitHub pull requests](https://img.shields.io/github/issues-pr/hexylab/argus)](https://github.com/hexylab/argus/pulls)
+[![GitHub last commit](https://img.shields.io/github/last-commit/hexylab/argus)](https://github.com/hexylab/argus/commits/main)
+
 ## ライセンス
 
-MIT License
-
-Copyright (c) 2025 hexylab
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+このプロジェクトは [MIT License](LICENSE) の下で公開されています。
