@@ -1,34 +1,220 @@
 # Argus
 
-映像AIモデルの学習データ生成から学習までを自動化するSaaS
+映像AIモデルの学習データ生成を自動化するプラットフォーム
+
+## 概要
+
+Argusは、映像からの物体検出モデル作成を効率化するWebアプリケーションです。映像のアップロードからアノテーション、データセットのエクスポートまでをワンストップで提供します。
+
+## 主な機能
+
+### 映像管理
+- 映像ファイルのアップロードと自動フレーム抽出
+- サムネイル自動生成
+- 映像メタデータ（解像度、FPS、フレーム数）の自動取得
+
+### アノテーション
+- Webブラウザ上でのバウンディングボックス編集
+- ラベル管理（カラーコーディング対応）
+- キーボードショートカットによる効率的な作業
+
+### 自動アノテーション
+- SAM 3（Segment Anything Model 3）を使用したテキストプロンプトベースの自動物体検出
+- 信頼度スコアによる品質管理
+- IoU重複検出による結果の最適化
+- レビューキューによる効率的な確認作業
+
+### セマンティック検索
+- SigLIP 2による画像・テキストの意味的検索
+- 自然言語クエリで特定のオブジェクトを含むフレームを発見
+- pgvectorを使用した高速ベクトル検索
+
+### データセットエクスポート
+- COCO形式でのエクスポート
+- YOLO形式でのエクスポート
+- 学習用データセットの即時生成
 
 ## 技術スタック
 
-| 領域 | 技術 |
+| カテゴリ | 技術 |
 |---------|------|
-| Frontend | Next.js 15, TypeScript, Konva.js |
-| Backend | Python, FastAPI, Celery |
-| Database | PostgreSQL (Supabase) |
-| Storage | S3 / MinIO |
-| AI/ML | SigLIP 2, SAM 3, YOLOX |
+| Frontend | Next.js 15, TypeScript, Tailwind CSS, Konva.js |
+| Backend | FastAPI, Python 3.12, Celery |
+| Database | PostgreSQL (Supabase), pgvector |
+| Storage | AWS S3 / MinIO |
+| ML/AI | SigLIP 2, SAM 3 |
+| Infrastructure | Docker Compose |
+
+## アーキテクチャ
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Frontend                              │
+│                  (Next.js 15 + TypeScript)                   │
+└─────────────────────────┬───────────────────────────────────┘
+                          │
+┌─────────────────────────▼───────────────────────────────────┐
+│                     Backend API                              │
+│                       (FastAPI)                              │
+└──────┬──────────────────┬───────────────────────────────────┘
+       │                  │
+┌──────▼──────┐   ┌───────▼───────┐   ┌─────────────────────┐
+│   Celery    │   │   PostgreSQL  │   │    S3 / MinIO       │
+│   Workers   │   │   (Supabase)  │   │    (Storage)        │
+└──────┬──────┘   │   + pgvector  │   └─────────────────────┘
+       │          └───────────────┘
+┌──────▼──────────────────────────┐
+│         GPU Workers             │
+│  ┌─────────┐    ┌─────────────┐ │
+│  │ SigLIP 2│    │    SAM 3    │ │
+│  │ (検索)  │    │(自動アノテ) │ │
+│  └─────────┘    └─────────────┘ │
+└─────────────────────────────────┘
+```
 
 ## セットアップ
 
-### 前提条件
+### 必要要件
 
 - Docker & Docker Compose
-- Make
+- Node.js 20+
+- Python 3.12+
+- NVIDIA GPU (自動アノテーション・検索機能使用時)
 
-### 起動
+### インストール
+
+1. リポジトリをクローン
+```bash
+git clone https://github.com/hexylab/argus.git
+cd argus
+```
+
+2. 環境変数を設定
+```bash
+cp docker/.env.example docker/.env
+# .envファイルを編集して必要な値を設定
+```
+
+3. Supabaseを起動
+```bash
+make supabase-start
+```
+
+4. 開発環境を起動
+```bash
+make dev
+```
+
+5. ブラウザでアクセス
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:8000
+- Supabase Studio: http://localhost:54333
+
+### GPU Workerの起動（オプション）
+
+自動アノテーションやセマンティック検索を使用する場合：
 
 ```bash
-# 環境の起動
-make up
+# SigLIP Worker（検索用）
+make start-siglip-worker
 
-# 停止
-make down
+# SAM3 Worker（自動アノテーション用）
+make start-sam3-worker
 ```
+
+## 開発
+
+### コマンド一覧
+
+```bash
+# 開発サーバー起動
+make dev
+
+# Lint実行
+make lint-docker
+
+# テスト実行
+make test-docker
+
+# CI（Lint + Test）
+make ci-docker
+
+# Supabase操作
+make supabase-start
+make supabase-stop
+make supabase-status
+```
+
+### ディレクトリ構成
+
+```
+argus/
+├── backend/           # FastAPI + Celery
+│   ├── app/
+│   │   ├── api/       # REST APIエンドポイント
+│   │   ├── crud/      # データベース操作
+│   │   ├── models/    # Pydanticモデル
+│   │   ├── tasks/     # Celeryタスク
+│   │   └── core/      # コアユーティリティ
+│   └── tests/
+├── frontend/          # Next.js 15
+│   ├── src/
+│   │   ├── app/       # App Router
+│   │   ├── components/
+│   │   └── lib/
+│   └── public/
+├── docker/            # Docker Compose設定
+├── supabase/          # Supabase設定・マイグレーション
+└── docs/              # ドキュメント
+```
+
+## 使い方
+
+### 基本的なワークフロー
+
+1. **プロジェクト作成**: ダッシュボードから新規プロジェクトを作成
+2. **映像アップロード**: 映像ファイルをドラッグ&ドロップでアップロード
+3. **フレーム確認**: 自動抽出されたフレームを確認
+4. **アノテーション**: 手動でバウンディングボックスを作成、またはテキストプロンプトで自動アノテーション
+5. **レビュー**: 自動アノテーション結果を確認・修正
+6. **エクスポート**: COCO/YOLO形式でデータセットをダウンロード
+
+### 自動アノテーション
+
+1. 検索ページでテキストクエリを入力（例：「person」「car」）
+2. 該当するフレームが自動検索される
+3. 検索結果から自動アノテーションを実行
+4. レビューページで結果を確認・承認
+
+### セマンティック検索
+
+検索ページで自然言語クエリを入力すると、意味的に類似したフレームが表示されます。
+
+例：
+- 「a person walking」
+- 「red car on the street」
+- 「computer on desk」
 
 ## ライセンス
 
 MIT License
+
+Copyright (c) 2025 hexylab
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
