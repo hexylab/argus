@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getProjects, createProject } from "@/lib/api/projects";
+import { createLabel } from "@/lib/api/labels";
 import type { Project, ProjectCreate } from "@/types/project";
 
 export async function logout() {
@@ -40,12 +41,19 @@ export async function fetchProjects(): Promise<{
   }
 }
 
+interface InitialLabel {
+  id: string;
+  name: string;
+  color: string;
+}
+
 export async function createProjectAction(formData: FormData): Promise<{
   project?: Project;
   error?: string;
 }> {
   const name = formData.get("name") as string;
   const description = formData.get("description") as string | null;
+  const labelsJson = formData.get("labels") as string | null;
 
   if (!name || name.trim().length === 0) {
     return { error: "プロジェクト名は必須です" };
@@ -53,6 +61,16 @@ export async function createProjectAction(formData: FormData): Promise<{
 
   if (name.length > 255) {
     return { error: "プロジェクト名は255文字以内にしてください" };
+  }
+
+  // Parse initial labels
+  let initialLabels: InitialLabel[] = [];
+  if (labelsJson) {
+    try {
+      initialLabels = JSON.parse(labelsJson);
+    } catch {
+      // Ignore parse errors, just don't create labels
+    }
   }
 
   try {
@@ -67,7 +85,23 @@ export async function createProjectAction(formData: FormData): Promise<{
       description: description?.trim() || null,
     };
 
+    // Create the project
     const project = await createProject(accessToken, data);
+
+    // Create initial labels if any
+    if (initialLabels.length > 0) {
+      const labelPromises = initialLabels.map((label, index) =>
+        createLabel(accessToken, project.id, {
+          name: label.name,
+          color: label.color,
+          sort_order: index,
+        })
+      );
+
+      // Wait for all labels to be created (don't fail if some labels fail)
+      await Promise.allSettled(labelPromises);
+    }
+
     revalidatePath("/dashboard");
     return { project };
   } catch (error) {

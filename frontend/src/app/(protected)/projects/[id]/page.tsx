@@ -1,9 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
+import Link from "next/link";
 import { fetchProject, fetchVideos, fetchLabels } from "./actions";
 import { VideoList } from "./components/video-list";
 import { DataUploader } from "./components/data-uploader";
 import { cn } from "@/lib/utils";
+import type { Label } from "@/types/label";
 
 interface ProjectPageProps {
   params: Promise<{
@@ -49,6 +51,65 @@ function FilmIcon({ className }: { className?: string }) {
   );
 }
 
+function TagIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={1.5}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z"
+      />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M6 6h.008v.008H6V6z"
+      />
+    </svg>
+  );
+}
+
+function ChevronRightIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M8.25 4.5l7.5 7.5-7.5 7.5"
+      />
+    </svg>
+  );
+}
+
+function WarningIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={1.5}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
+      />
+    </svg>
+  );
+}
+
 const statusConfig = {
   active: {
     label: "アクティブ",
@@ -66,6 +127,77 @@ const statusConfig = {
     dotClassName: "bg-red-500",
   },
 } as const;
+
+// Labels Section Component
+function LabelsSection({
+  labels,
+  projectId,
+}: {
+  labels: Label[];
+  projectId: string;
+}) {
+  const hasLabels = labels.length > 0;
+
+  return (
+    <section className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <TagIcon className="size-5 text-muted-foreground" />
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight">ラベル</h2>
+            <p className="text-sm text-muted-foreground">
+              アノテーションに使用するラベル
+            </p>
+          </div>
+        </div>
+        <Link
+          href={`/projects/${projectId}/settings`}
+          className="flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        >
+          {hasLabels ? "管理" : "設定"}
+          <ChevronRightIcon className="size-4" />
+        </Link>
+      </div>
+
+      {hasLabels ? (
+        <div className="flex flex-wrap gap-2">
+          {labels.map((label) => (
+            <div
+              key={label.id}
+              className="flex items-center gap-2 rounded-full border bg-background px-3 py-1.5 text-sm"
+            >
+              <span
+                className="size-3 rounded-full"
+                style={{ backgroundColor: label.color }}
+              />
+              <span>{label.name}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <Link
+          href={`/projects/${projectId}/settings`}
+          className="group block rounded-xl border-2 border-dashed border-amber-300 bg-amber-50/50 p-5 transition-colors hover:border-amber-400 hover:bg-amber-50 dark:border-amber-700 dark:bg-amber-950/20 dark:hover:border-amber-600 dark:hover:bg-amber-950/30"
+        >
+          <div className="flex items-start gap-4">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/50">
+              <WarningIcon className="size-5 text-amber-600 dark:text-amber-400" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-medium text-amber-800 dark:text-amber-200">
+                ラベルが設定されていません
+              </h3>
+              <p className="mt-1 text-sm text-amber-700/80 dark:text-amber-300/80">
+                アノテーションを行うには、まずラベルを設定してください。クリックして設定ページに移動します。
+              </p>
+            </div>
+            <ChevronRightIcon className="size-5 text-amber-600 opacity-0 transition-opacity group-hover:opacity-100 dark:text-amber-400" />
+          </div>
+        </Link>
+      )}
+    </section>
+  );
+}
 
 export default async function ProjectPage({ params }: ProjectPageProps) {
   const { id: projectId } = await params;
@@ -141,6 +273,12 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
           <p className="text-muted-foreground">{project.description}</p>
         ) : null}
       </header>
+
+      {/* Divider */}
+      <div className="border-t border-border" />
+
+      {/* Labels Section */}
+      <LabelsSection labels={labels} projectId={projectId} />
 
       {/* Divider */}
       <div className="border-t border-border" />
